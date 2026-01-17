@@ -11,28 +11,28 @@ In the current Systems Integration landscape, validation is often manual, unscal
 
 ## The Objective
 To engineer a **Systems Commissioning Middleware** that delivers:
-1.  **Service Virtualization:** De-coupling control logic from physical dependencies by implementing software mocks for proprietary hardware (e.g., Crestron, Control4, Cisco).
+1.  **Service Virtualization:** De-coupling control logic from physical dependencies by implementing software mocks for proprietary hardware.
 2.  **Automated Infrastructure Validation:** Programmatic verification of network state via SSH/Netconf rather than manual CLI inspection.
 3.  **Cross-Protocol Interoperability:** A unified abstraction layer that enables heterogeneous systems (Industrial IoT, Enterprise Network, AV) to exchange telemetry.
 
 ## Architecture & Modules
-The framework is designed as a modular micro-services architecture.
+The framework is designed as a hybrid micro-services architecture, bridging local Python logic with enterprise-grade network emulation.
 
 ### Current Implementation (Phase 1)
-* **`mock_device_server.py` (Virtual Endpoint):**
-    A TCP-based service simulator that mimics hardware behavior. It enables "Offline-First" development of control drivers, allowing logic to be validated before physical deployment.
+* **`cisco_ssh_manager.py` (Live Infrastructure):**
+    Integrated with **Cisco CML (Modeling Labs)** to validate automation logic against real IOSv kernels. It handles SSH session management, privileged execution, and telemetry retrieval via `Netmiko`.
 
-### In Development (Coming Soon)
+* **`mock_device_server.py` (Virtual Endpoint):**
+    A TCP-based service simulator that mimics legacy hardware behavior. It enables "Offline-First" development of control drivers.
+
 * **`tcp_client_controller.py` (Command Dispatch):**
-    The central control node responsible for dispatching payloads to edge devices and parsing protocol-specific acknowledgments.
-* **`cisco_ssh_manager.py` (Network Telemetry):**
-    An automated infrastructure manager utilizing `Netmiko` to securely retrieve and parse operational data from Cisco IOS environments.
+    The central control node responsible for dispatching payloads to edge devices (real or virtual) and parsing protocol-specific acknowledgments.
 
 ## Getting Started
 
 ### Prerequisites
 * Python 3.9+
-* Virtual Environment (Recommended)
+* Cisco CML (Optional for live switch testing)
 
 ### Installation
 1.  **Clone the repository:**
@@ -57,17 +57,37 @@ The framework is designed as a modular micro-services architecture.
     pip install -r requirements.txt
     ```
 
+4.  **Configure Environment Variables:**
+    To protect sensitive credentials, this project uses a `.env` file.
+    * Duplicate the template: `cp example.env .env`
+    * Edit `.env` with your local lab credentials (IP, Username, Password).
+
 ## Usage
-To initialize the mock environment for protocol testing:
+
+### Workflow A: Mock Protocol Testing
+To test control logic without physical hardware:
 
 1.  **Launch the Virtual Endpoint:**
     ```bash
     python mock_device_server.py
     ```
-    *Status: Listening on 127.0.0.1:5001 (Simulating Hardware)*
+    *Status: Listening on 127.0.0.1:5001*
 
-2.  **Test Connectivity (In a separate terminal):**
-    *(Client Controller coming in next update)*
+2.  **Launch the Controller (New Terminal):**
+    ```bash
+    python tcp_client_controller.py
+    ```
+    *Command: Type `POWER_ON` to test the handshake.*
+
+### Workflow B: Live Infrastructure Validation
+To validate network state against Cisco CML or physical switches:
+
+1.  **Ensure `.env` is configured correctly.**
+2.  **Execute the Manager:**
+    ```bash
+    python cisco_ssh_manager.py
+    ```
+    *Output: Verifies SSH reachability and retrieves the device hostname.*
 
 ## Security & Compliance
 * **Credential Abstraction:** All sensitive keys and environmental configurations are managed via `.env` abstraction layers.
