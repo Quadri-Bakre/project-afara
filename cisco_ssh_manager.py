@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 from netmiko import ConnectHandler
-from netmiko.ssh_exception import NetmikoTimeoutException, NetmikoAuthenticationException
+from netmiko import NetmikoTimeoutException, NetmikoAuthenticationException
 
 # Load local configuration secrets
 load_dotenv()
