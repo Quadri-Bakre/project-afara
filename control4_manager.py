@@ -1,58 +1,89 @@
 import socket
+import time
+import threading
+import sys
 import os
 from dotenv import load_dotenv
 
-# Load local configuration secrets
+# Load environment variables
 load_dotenv()
 
-class Control4Manager:
-    """
-    Controller class for interacting with Control4 via Generic TCP Driver.
-    """
-    def __init__(self):
-        self.ip = os.getenv("CONTROL4_IP")
-        # Standard port for Generic TCP driver (usually 5000, 6000, or 8080)
-        # We will assume 5000 for now.
-        self.port = int(os.getenv("CONTROL4_PORT", 5000))
+# Network Configuration
+HOST = '0.0.0.0'
+# Default to 8085 if not defined in .env
+PORT = int(os.getenv("AFARA_PORT", 8085)) 
+BUFFER_SIZE = 1024
 
-    def send_command(self, command):
-        """
-        Opens a socket, sends a command string, and closes the connection.
-        """
-        if not self.ip:
-            print("[!] Error: CONTROL4_IP not set in .env")
-            return False
+def start_tcp_listener():
+    """
+    Initializes a background TCP server to listen for state changes 
+    initiated by the Control4 controller.
+    """
+    print(f"[SYSTEM] Initializing TCP Listener on port {PORT}...")
+    
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            # Enable address reuse to facilitate quick restarts
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.bind((HOST, PORT))
+            s.listen()
+            
+            while True:
+                # Blocking call; waits for incoming connection
+                conn, addr = s.accept()
+                with conn:
+                    # Connection logging
+                    # print(f"[NET] Connection established: {addr[0]}")
+                    
+                    while True:
+                        data = conn.recv(BUFFER_SIZE)
+                        if not data:
+                            break
+                        
+                        # Decode payload and remove transmission artifacts
+                        command = data.decode('utf-8').strip()
+                        if command:
+                            handle_command(command)
+                        
+    except OSError as e:
+        print(f"[CRITICAL] Socket binding failed: {e}")
+        sys.exit(1)
 
-        print(f"[*] Connecting to Control4 Controller ({self.ip}:{self.port})...")
+def handle_command(command):
+    """
+    Routes incoming commands to the appropriate logic handlers.
+    
+    Args:
+        command (str): The raw command string received from Control4.
+    """
+    print(f"[EVENT] Received: {command}")
+    
+    if command == "LIGHT_ON":
+        # TODO: Trigger occupancy active state
+        print("[ACTION] State Set: Active")
         
-        try:
-            # Create a TCP/IP socket
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.settimeout(5) # Don't hang forever
-                s.connect((self.ip, self.port))
-                
-                # Send data (Must be encoded to bytes)
-                print(f"[*] Sending Command: {command}")
-                s.sendall(command.encode('utf-8'))
-                
-                # Optional: Wait for acknowledgment from C4
-                # response = s.recv(1024)
-                # print(f"[+] Received: {response.decode('utf-8')}")
-                
-            print("[+] Command transmission complete.")
-            return True
+    elif command == "LIGHT_OFF":
+        # TODO: Trigger occupancy inactive state
+        print("[ACTION] State Set: Inactive")
 
-        except ConnectionRefusedError:
-            print(f"[!] Connection Refused. Is the Generic TCP Driver listening on port {self.port}?")
-            return False
-        except socket.timeout:
-            print(f"[!] Timeout. Control4 EA-1 did not respond.")
-            return False
-        except Exception as e:
-            print(f"[!] Error: {e}")
-            return False
+def main_loop():
+    """
+    Primary application runtime loop. 
+    Handles sensor polling and facial recognition tasks.
+    """
+    try:
+        while True:
+            # Placeholder for main thread operations
+            time.sleep(1)
+            
+    except KeyboardInterrupt:
+        print("\n[SYSTEM] Shutdown sequence initiated.")
 
 if __name__ == "__main__":
-    # Test Payload
-    c4 = Control4Manager()
-    c4.send_command("LIGHT_ON")
+    # 1. Initialize TCP Listener in a daemon thread
+    listener = threading.Thread(target=start_tcp_listener, daemon=True)
+    listener.start()
+
+    # 2. Begin Main Execution Loop
+    print("[SYSTEM] Afara Manager is running.")
+    main_loop()

@@ -1,0 +1,108 @@
+<devicedata>
+  <copyright>Copyright 2026 Project Afara</copyright>
+  <manufacturer>Project Afara</manufacturer>
+  <model>Afara Smart Lock</model>
+  <creator>Quadri Bakre</creator>
+  <created>01/18/2026</created>
+  <version>308.0</version>
+  <small>devices_sm/lock.gif</small>
+  <large>devices_lg/lock.gif</large>
+  <control>lua_gen</control>
+  <driver>DriverLua</driver>
+  
+  <proxies>
+    <proxy>lock</proxy>
+  </proxies>
+  
+  <actions>
+    <action>
+      <name>Test Light ON</name>
+      <command>TEST_ON</command>
+    </action>
+    <action>
+      <name>Test Light OFF</name>
+      <command>TEST_OFF</command>
+    </action>
+  </actions>
+  
+  <connections>
+    <connection>
+      <id>5001</id>
+      <type>2</type>
+      <connectionname>Smart Lock</connectionname>
+      <consumer>False</consumer>
+      <linelevel>True</linelevel>
+      <classes>
+        <class>
+          <classname>LOCK</classname>
+        </class>
+      </classes>
+    </connection>
+
+    <connection>
+      <id>6001</id>
+      <type>4</type>
+      <connectionname>Afara Network</connectionname>
+      <consumer>True</consumer>
+      <linelevel>True</linelevel>
+      <classes>
+        <class>
+          <classname>TCP</classname>
+          <ports>
+            <port>
+              <number>8085</number>
+              <auto_connect>True</auto_connect>
+              <monitor_connection>True</monitor_connection>
+              <keep_connection>True</keep_connection>
+              <keep_alive>True</keep_alive>
+            </port>
+          </ports>
+        </class>
+      </classes>
+    </connection>
+  </connections>
+  
+  <script>
+    <![CDATA[
+      function OnDriverInit()
+        -- Init
+      end
+
+      function SendToPC(cmd)
+        -- 1. Add Terminator (Required for Python to read it)
+        local commandWithTerminator = cmd .. "\r\n"
+        print("AFARA SENDING: " .. cmd)
+        
+        -- 2. Send to Network (Explicitly using Port 8085)
+        C4:SendToNetwork(6001, 8085, commandWithTerminator)
+      end
+
+      -- These are triggered by the "Actions" tab
+      function ExecuteCommand(strCommand, tParams)
+        if (strCommand == "TEST_ON") then
+            SendToPC("LIGHT_ON")
+        elseif (strCommand == "TEST_OFF") then
+            SendToPC("LIGHT_OFF")
+        end
+      end
+
+      -- These are triggered by the App/Remote (and sometimes Composer)
+      function ReceivedFromProxy(idBinding, sCommand, tParams)
+        print("AFARA DEBUG: Received " .. sCommand)
+
+        if (sCommand == "UNLOCK") then
+            SendToPC("LIGHT_OFF")
+            C4:SendToProxy(idBinding, "LOCK_UNLOCKED", {})
+
+        elseif (sCommand == "LOCK") then
+            SendToPC("LIGHT_ON")
+            C4:SendToProxy(idBinding, "LOCK_LOCKED", {})
+
+        elseif (sCommand == "TOGGLE") then
+            SendToPC("LIGHT_ON")
+            C4:SendToProxy(idBinding, "LOCK_LOCKED", {})
+        end
+      end
+    ]]>
+  </script>
+</devicedata>
