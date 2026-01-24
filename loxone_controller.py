@@ -14,7 +14,7 @@ class LoxoneManager:
         self.ip = os.getenv("LOXONE_IP")
         self.user = os.getenv("LOXONE_USER")
         self.password = os.getenv("LOXONE_PASS")
-        self.vi_name = "Python_Trigger"  # Ensure this Virtual Input exists in Loxone Config
+        self.vi_name = "VI1"  # Ensure this Virtual Input exists in Loxone Config
 
     def send_pulse(self):
         """
