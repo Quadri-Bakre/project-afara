@@ -49,7 +49,36 @@ class LoxoneManager:
         except requests.exceptions.RequestException as error:
             print(f"[!] Network Error: {error}")
             return {"status": "network_error", "message": str(error)}
+    
+    def set_state(self, is_on):
+        """
+        Switches the input permanently ON or OFF.
+        True = ON (Alarm Active)
+        False = OFF (Alarm Cleared)
+        """
+        # Determine command: /On or /Off
+        command = "On" if is_on else "Off"
+        
+        # Endpoint uses /On or /Off instead of /pulse
+        endpoint = f"http://{self.user}:{self.password}@{self.ip}/dev/sps/io/{self.vi_name}/{command}"
 
+        print(f"[*] Setting Loxone State: {self.vi_name} -> {command}")
+
+        try:
+            # Execute HTTP Request
+            response = requests.get(endpoint, timeout=5)
+            
+            if response.status_code == 200:
+                print(f"[+] Success: State updated to {command}.")
+                return {"status": "success", "state": command}
+            else:
+                print(f"[!] Failure: HTTP {response.status_code}")
+                return {"status": "error", "code": response.status_code}
+
+        except requests.exceptions.RequestException as error:
+            print(f"[!] Network Error: {error}")
+            return {"status": "network_error", "message": str(error)}
+            
 if __name__ == "__main__":
     # Manual execution test
     loxone = LoxoneManager()

@@ -52,6 +52,8 @@ def start_monitor_service():
             if is_reachable:
                 if previous_state != "ONLINE":
                     print(f"[{timestamp}] [INFO] Asset {TARGET_ASSET} is REACHABLE.")
+                    # Turn the Alarm OFF (Green)
+                    automation.set_state(False)
                     previous_state = "ONLINE"
             
             else:
@@ -59,14 +61,11 @@ def start_monitor_service():
                 print(f"[{timestamp}] [CRITICAL] Asset {TARGET_ASSET} is UNREACHABLE.")
                 
                 if previous_state != "OFFLINE":
-                    print(f"[{timestamp}] [ACTION] Triggering alarm sequence.")
-                    
-                    # Execute Driver Command
-                    result = automation.send_pulse()
-                    
-                    print(f"[{timestamp}] [DRIVER] Response: {result.get('status', 'No Data')}")
+                    print(f"[{timestamp}] [ACTION] Setting Alarm State to ON.")
+                    # Turn the Alarm ON (Red) and KEEP it on
+                    automation.set_state(True)
                     previous_state = "OFFLINE"
-
+                    
             time.sleep(POLL_INTERVAL)
 
     except KeyboardInterrupt:
