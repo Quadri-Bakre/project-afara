@@ -35,6 +35,9 @@ The framework is designed as a hybrid micro-services architecture, bridging loca
 * **`loxone_controller.py` (IoT Driver):**
     A REST API driver connecting Python to Loxone Miniservers. It translates network states into physical actions (e.g., triggering alarms, switching relays, Sending Messages or App notifications to admin or users) using persistent state control (`/On` vs `/Off` logic).
 
+* **`mock_loxone_server.py` (Virtual Controller):**
+    A lightweight HTTP server that emulates the Loxone REST API. It allows developers to validate the Watchdog logic and alarm triggers entirely on localhost, without requiring physical automation hardware.
+
 ## Getting Started
 
 ### Prerequisites
@@ -96,9 +99,54 @@ To validate network state against Cisco CML or physical switches:
     ```
     *Output: Verifies SSH reachability and retrieves the device hostname.*
 
+### Workflow C: Network Watchdog Service (Hardware)
+To monitor a critical asset and trigger a **physical** Loxone alarm on failure:
+
+1.  **Verify Configuration:** Ensure `.env` contains the IP of your **real** Loxone Miniserver (e.g., `192.168.1.100`) and the correct Virtual Input name.
+2.  **Launch the Watchdog:**
+    ```bash
+    python afara_watchdog.py
+    ```
+    * *Status: Polling Target...*
+    * *Action: If the target goes offline, the script sends a command to the physical Miniserver to turn the Alarm State ON.*
+
+### Workflow D: Fully Virtualized Commissioning (No Hardware)
+To test the entire "Watchdog -> Alarm" logic chain **without** physical hardware:
+
+1.  **Configure `.env` for Simulation:**
+    ```ini
+    # Point the driver to the Mock Server
+    LOXONE_IP=127.0.0.1:5001
+    LOXONE_USER=test
+    LOXONE_PASS=test
+    ```
+2.  **Start the Mock Server:**
+    ```bash
+    python mock_loxone_server.py
+    ```
+3.  **Run the Watchdog (New Terminal):**
+    ```bash
+    python afara_watchdog.py
+    ```
+    *Result: When the Watchdog triggers an alarm, you will see the "On/Off" command appear in the Mock Server terminal window instead of on a real device.*
+
 ## Security & Compliance
 * **Credential Abstraction:** All sensitive keys and environmental configurations are managed via `.env` abstraction layers.
 * **Operational Safety:** Automation modules operate in read-only telemetry mode by default to ensure non-destructive testing on live infrastructure.
+
+## Deployment (Docker)
+To run the application in a containerized environment (ensuring consistent behavior across Windows/Linux/macOS):
+
+1.  **Build the Image:**
+    ```bash
+    docker build -t project-afara:v1 .
+    ```
+
+2.  **Run the Container:**
+    Injects your local configuration `.env` into the container to allow access to physical hardware.
+    ```bash
+    docker run -it --rm --env-file .env project-afara:v1
+    ```
 
 ## Connect
 * **LinkedIn:** [Quadri Bakre](https://www.linkedin.com/in/quadri-bakre) - *Professional updates & Engineering insights*
