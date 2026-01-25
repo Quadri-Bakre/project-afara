@@ -28,6 +28,13 @@ The framework is designed as a hybrid micro-services architecture, bridging loca
 * **`tcp_client_controller.py` (Command Dispatch):**
     The central control node responsible for dispatching payloads to edge devices (real or virtual) and parsing protocol-specific acknowledgments.
 
+### Implementation (Phase 2: Active Monitoring)
+* **`afara_watchdog.py` (Logic Engine):**
+    A cross-platform service (Windows/Linux/macOS) that polls critical network assets via OS-native ICMP. It features "State Latching" logic to prevent alert fatigue during intermittent network flapping.
+
+* **`loxone_controller.py` (IoT Driver):**
+    A REST API driver connecting Python to Loxone Miniservers. It translates network states into physical actions (e.g., triggering alarms, switching relays, Sending Messages or App notifications to admin or users) using persistent state control (`/On` vs `/Off` logic).
+
 ## Getting Started
 
 ### Prerequisites
