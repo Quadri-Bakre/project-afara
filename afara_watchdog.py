@@ -21,12 +21,18 @@ POLL_INTERVAL = 10
 
 def verify_reachability(ip):
     """
-    Checks network reachability via system ICMP.
+    Checks network reachability. 
+    Uses 'grep' (Linux) or 'find' (Windows) to ensure it only count 
+    TRUE responses (bytes from...) and ignore 'Destination host unreachable'.
     """
-    param = '-n' if platform.system().lower() == 'windows' else '-c'
-    redirect = "NUL" if platform.system().lower() == 'windows' else "/dev/null"
+    if platform.system().lower() == 'windows':
+        # Windows: Look for "TTL=" to confirm it's a real reply
+        command = f"ping -n 1 {ip} | find \"TTL=\" > NUL 2>&1"
+    else:
+        # Linux/Mac: Look for "bytes from" to confirm it's a real reply
+        # We send 3 pings (-c 3) to avoid reacting to 1-second glitches
+        command = f"ping -c 3 {ip} | grep \"bytes from\" > /dev/null 2>&1"
     
-    command = f"ping {param} 1 {ip} > {redirect} 2>&1"
     response = os.system(command)
     
     return response == 0
