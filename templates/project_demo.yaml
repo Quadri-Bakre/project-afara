@@ -1,0 +1,70 @@
+project_name: "Project Afara: Demo Villa"
+site_code: "LDN-VILLA-01"
+
+# Level 1: The Topology (Floors)
+topology:
+  - floor: "Ground Floor"
+    sections:
+      # Level 2: Area Type (Internal vs External)
+      - type: "Internal"
+        rooms:
+          # Level 3: The Physical Room
+          - name: "Plant Room (Rack Location)"
+            devices:
+              # Level 4: The Assets
+              - name: "Main_Rack_Switch"
+                ip: "192.168.1.5"
+                driver: "cisco"
+                critical: true
+
+              - name: "Loxone_Miniserver_Gen2"
+                ip: "192.168.1.10"
+                driver: "loxone"
+                critical: true
+
+          - name: "Living Room"
+            devices:
+              - name: "Touch_Switch_Entrance"
+                ip: "192.168.1.55"
+                driver: "loxone"
+                critical: false
+              
+              - name: "Sony_TV_Main"
+                ip: "192.168.1.25"
+                driver: "generic"
+                critical: false
+
+              - name: "Internet_Connection_Check"
+                ip: "8.8.8.8"
+                driver: "generic"
+                critical: true
+
+      - type: "External"
+        rooms:
+          - name: "Garden South"
+            devices:
+              - name: "CCTV_Camera_01"
+                ip: "192.168.1.201"
+                driver: "generic"
+                critical: true
+
+              - name: "Gate_Intercom"
+                ip: "192.168.1.202"
+                driver: "generic"
+                critical: true
+
+  - floor: "First Floor"
+    sections:
+      - type: "Internal"
+        rooms:
+          - name: "Master Bedroom"
+            devices:
+              - name: "Wifi_Access_Point_02"
+                ip: "192.168.1.15"
+                driver: "generic"
+                critical: true
+
+              - name: "Touch_Pure_Bedside"
+                ip: "192.168.1.60"
+                driver: "loxone"
+                critical: false

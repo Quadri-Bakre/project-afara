@@ -1,71 +1,82 @@
 import time
 import os
-import sys
-from datetime import datetime
+import datetime
 from dotenv import load_dotenv
 
-# Driver Imports
-try:
-    # 1. The Watchdog (Standardized Ping/Port Check)
-    from drivers.generic import GenericDevice
-    
-    # 2. The Controller (Loxone Hardware Integration)
-    from drivers.loxone import LoxoneManager
-    
-except ImportError as e:
-    print(f"[CRITICAL] Driver Import Error: {e}")
-    sys.exit(1)
+# Import core modules
+from core.loader import load_project_topology
+from core.logger import SystemLogger
+from drivers.generic import GenericDevice
+from drivers.loxone import LoxoneManager
 
-# Load Environment Variables
+# Load Credentials
 load_dotenv()
 
-# Configuration
-TARGET_ASSET = os.getenv("DEVICE_IP", "8.8.8.8")
-POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", 10))
+def main():
+    print("\n" + "="*50)
+    print("   PROJECT AFARA: PHASE 5 (LOGGING ENGINE)")
+    print("="*50 + "\n")
 
-def start_engine():
-    print("--- PROJECT AFARA COMMISSIONING ENGINE ---")
-    print(f"Target Asset: {TARGET_ASSET}")
+    # 1. SETUP: Initialize Logger and Paths
+    logger = SystemLogger() # Initialize the logging system
+    
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    yaml_path = os.path.join(current_dir, 'templates', 'project_demo.yaml')
+    
+    # 2. LOAD: Read the Digital Twin (YAML)
+    project_meta, devices = load_project_topology(yaml_path)
 
-    # Initialize Hardware Drivers
-    try:
-        # A. Create the Monitor (The "Eyes")
-        monitor = GenericDevice(name="Primary_Asset", ip=TARGET_ASSET)
-        
-        # B. Create the Automation (The "Hands")
-        automation = LoxoneManager()
-        
-    except Exception as e:
-        print(f"[ERROR] Driver initialization failed: {e}")
-        sys.exit(1)
+    if not devices:
+        print("[ERROR] No devices found in template. Exiting.")
+        return
 
-    previous_state = "UNKNOWN"
+    # Log the start of this session to the text file
+    logger.log_header(project_meta['name'])
+    
+    print(f"\n[START] Monitoring {len(devices)} assets for {project_meta['name']}...\n")
 
+    # 3. LOOP: Continuous Monitoring Cycle
     try:
         while True:
-            timestamp = datetime.now().strftime("%H:%M:%S")
+            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            print(f"--- Scan Cycle: {timestamp} ---")
             
-            # Execute Network Check
-            is_reachable = monitor.ping_device()
+            critical_errors = []
 
-            if is_reachable:
-                if previous_state != "ONLINE":
-                    print(f"[{timestamp}] [INFO] Asset {TARGET_ASSET} is REACHABLE.")
-                    automation.set_state(False) # Deactivate Alarm
-                    previous_state = "ONLINE"
-            
-            else:
-                print(f"[{timestamp}] [CRITICAL] Asset {TARGET_ASSET} is UNREACHABLE.")
-                
-                if previous_state != "OFFLINE":
-                    print(f"[{timestamp}] [ACTION] Activating Alarm.")
-                    automation.set_state(True) # Activate Alarm
-                    previous_state = "OFFLINE"
+            for device in devices:
+                name = device['name']
+                ip = device['ip']
+                location = f"{device['location']['floor']} > {device['location']['room']}"
+                is_critical = device['critical']
+
+                # --- DRIVER SELECTION ---
+                target = GenericDevice(ip)
+                is_online = target.check_status()
+
+                # --- REPORTING ---
+                if is_online:
+                    print(f"   [PASS] {name:<25} | {location}")
+                else:
+                    status_msg = f"   [FAIL] {name:<25} | {location} (OFFLINE)"
+                    print(status_msg)
                     
-            time.sleep(POLL_INTERVAL)
+                    if is_critical:
+                        # 1. Add to screen report
+                        critical_errors.append(f"{name} | {location}")
+                        
+                        # 2. Write to permanent log file <--- NEW
+                        logger.log_failure(name, location, ip)
+
+            # 4. SUMMARY: Process Critical Failures
+            if critical_errors:
+                print("\n   !!! CRITICAL FAILURE REPORT !!!")
+                print(f"   [SAVED] {len(critical_errors)} errors written to logs/")
+            
+            print("-" * 40)
+            time.sleep(10)
 
     except KeyboardInterrupt:
-        print("\n[SYSTEM] Engine terminated.")
+        print("\n[STOP] Commissioning Engine halted by user.")
 
 if __name__ == "__main__":
-    start_engine()
+    main()

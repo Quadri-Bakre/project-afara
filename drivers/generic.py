@@ -1,33 +1,43 @@
-import socket
-import subprocess
 import platform
+import subprocess
+import socket
 
 class GenericDevice:
-    """
-    Universal Driver for devices without specific APIs (Sky Q, Apple TV, etc).
-    """
-    def __init__(self, name, ip, check_port=None):
-        self.name = name
+    def __init__(self, ip):
+        """
+        Initialize the device driver. 
+        We only need the IP to perform a ping.
+        """
         self.ip = ip
-        self.check_port = check_port 
 
-    def ping_device(self):
-        param = '-n' if platform.system().lower() == 'windows' else '-c'
+    def check_status(self):
+        """
+        Pings the target IP to verify network connectivity.
+        Returns: True (Online) | False (Offline)
+        """
         try:
-            return subprocess.call(['ping', param, '1', self.ip], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) == 0
-        except:
+            # Determine the OS (Windows uses -n, Linux/Mac uses -c)
+            param = '-n' if platform.system().lower() == 'windows' else '-c'
+            
+            # Build the ping command
+            # -n 1: Send only 1 packet
+            # -w 1000: Timeout after 1000ms (1 second) to keep the loop fast
+            command = ['ping', param, '1', self.ip]
+            
+            # Windows requires explicit timeout flags for ping
+            if platform.system().lower() == 'windows':
+                 command.extend(['-w', '1000'])
+            
+            # Run the command silently (stdout=DEVNULL hides the text output)
+            response = subprocess.call(
+                command, 
+                stdout=subprocess.DEVNULL, 
+                stderr=subprocess.DEVNULL
+            )
+            
+            # If response is 0, the ping was successful
+            return response == 0
+            
+        except Exception as e:
+            print(f"[DRIVER ERROR] Ping failed for {self.ip}: {e}")
             return False
-
-    def check_open_port(self):
-        if not self.check_port: return True
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(2)
-        result = sock.connect_ex((self.ip, self.check_port))
-        sock.close()
-        return result == 0
-
-    def run_diagnostics(self):
-        status = "PASS" if self.ping_device() else "FAIL"
-        if self.check_port and status == "PASS":
-            if not self.check_open_port(): status = "PARTIAL_FAIL"
-        return {"device": self.name, "ip": self.ip, "status": status}
