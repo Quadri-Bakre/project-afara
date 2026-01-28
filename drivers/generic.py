@@ -1,43 +1,51 @@
 import platform
 import subprocess
-import socket
+from getmac import get_mac_address
 
 class GenericDevice:
     def __init__(self, ip):
-        """
-        Initialize the device driver. 
-        We only need the IP to perform a ping.
-        """
         self.ip = ip
 
     def check_status(self):
-        """
-        Pings the target IP to verify network connectivity.
-        Returns: True (Online) | False (Offline)
-        """
         try:
-            # Determine the OS (Windows uses -n, Linux/Mac uses -c)
+            # 1. Ping
             param = '-n' if platform.system().lower() == 'windows' else '-c'
+            command = ['ping', param, '1', '-w', '1000', self.ip]
             
-            # Build the ping command
-            # -n 1: Send only 1 packet
-            # -w 1000: Timeout after 1000ms (1 second) to keep the loop fast
-            command = ['ping', param, '1', self.ip]
-            
-            # Windows requires explicit timeout flags for ping
             if platform.system().lower() == 'windows':
-                 command.extend(['-w', '1000'])
+                 pass 
             
-            # Run the command silently (stdout=DEVNULL hides the text output)
             response = subprocess.call(
                 command, 
                 stdout=subprocess.DEVNULL, 
                 stderr=subprocess.DEVNULL
             )
-            
-            # If response is 0, the ping was successful
-            return response == 0
-            
-        except Exception as e:
-            print(f"[DRIVER ERROR] Ping failed for {self.ip}: {e}")
-            return False
+            is_online = (response == 0)
+
+            # 2. MAC Lookup
+            mac_str = "Unknown"
+            if is_online:
+                try:
+                    mac = get_mac_address(ip=self.ip)
+                    if mac:
+                        mac_str = mac.upper()
+                    else:
+                        mac_str = "N/A (Routed)"
+                except:
+                    mac_str = "Error"
+
+            # RETURN SEPARATE KEYS
+            return {
+                "online": is_online,
+                "serial": "N/A", # Generic devices don't show serials via Ping
+                "mac": mac_str,
+                "error": None
+            }
+
+        except Exception:
+            return {
+                "online": False,
+                "serial": "---",
+                "mac": "---",
+                "error": "Driver Error"
+            }

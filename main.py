@@ -8,75 +8,90 @@ from core.loader import load_project_topology
 from core.logger import SystemLogger
 from drivers.generic import GenericDevice
 from drivers.loxone import LoxoneManager
+from drivers.cisco import CiscoSwitch
 
 # Load Credentials
 load_dotenv()
 
 def main():
     print("\n" + "="*50)
-    print("   PROJECT AFARA: PHASE 5 (LOGGING ENGINE)")
+    print("   PROJECT AFARA: PHASE 6 (UNIFORM GRID REPORTING)")
     print("="*50 + "\n")
 
-    # 1. SETUP: Initialize Logger and Paths
-    logger = SystemLogger() # Initialize the logging system
-    
+    logger = SystemLogger()
     current_dir = os.path.dirname(os.path.abspath(__file__))
     yaml_path = os.path.join(current_dir, 'templates', 'project_demo.yaml')
-    
-    # 2. LOAD: Read the Digital Twin (YAML)
     project_meta, devices = load_project_topology(yaml_path)
 
     if not devices:
-        print("[ERROR] No devices found in template. Exiting.")
+        print("[ERROR] No devices found. Exiting.")
         return
 
-    # Log the start of this session to the text file
     logger.log_header(project_meta['name'])
-    
-    print(f"\n[START] Monitoring {len(devices)} assets for {project_meta['name']}...\n")
+    print(f"\n[START] Monitoring {len(devices)} assets...\n")
 
-    # 3. LOOP: Continuous Monitoring Cycle
+    # Define Header String (kept outside loop for cleanliness)
+    header = f"   {'STATUS':<7} {'NAME':<25} | {'MODE':<8} | {'IP ADDRESS':<15} | {'MAC ADDRESS':<17} | {'SERIAL':<15} | LOCATION"
+    separator = "   " + "-"*120
+
     try:
         while True:
-            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            print(f"--- Scan Cycle: {timestamp} ---")
+            # 1. Print Timestamp (Top of the Block)
+            timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+            print(f"\n--- Scan Cycle: {timestamp} ---")
+            
+            # 2. Print Header (Every Cycle)
+            print(header)
+            print(separator)
             
             critical_errors = []
 
             for device in devices:
                 name = device['name']
                 ip = device['ip']
+                driver_type = device['driver']
                 location = f"{device['location']['floor']} > {device['location']['room']}"
                 is_critical = device['critical']
 
-                # --- DRIVER SELECTION ---
-                target = GenericDevice(ip)
-                is_online = target.check_status()
-
-                # --- REPORTING ---
-                if is_online:
-                    print(f"   [PASS] {name:<25} | {location}")
+                target = None
+                if driver_type == "cisco":
+                    target = CiscoSwitch(ip)
+                elif driver_type == "loxone":
+                    target = GenericDevice(ip)
                 else:
-                    status_msg = f"   [FAIL] {name:<25} | {location} (OFFLINE)"
-                    print(status_msg)
+                    target = GenericDevice(ip)
+
+                # --- CHECK STATUS ---
+                result = target.check_status()
+                is_online = result['online']
+                
+                # Extract Data
+                serial = result.get('serial', '---')
+                mac = result.get('mac', '---')
+                
+                # Determine Mode Tag
+                mode_tag = "(SSH)" if driver_type == "cisco" else "(PING)"
+
+                # --- PRINTING ---
+                if is_online:
+                    print(f"   [PASS] {name:<25} | {mode_tag:<8} | {ip:<15} | {mac:<17} | {serial:<15} | {location}")
+                else:
+                    fail_mac = "OFFLINE"
+                    fail_serial = "---"
+                    print(f"   [FAIL] {name:<25} | {mode_tag:<8} | {ip:<15} | {fail_mac:<17} | {fail_serial:<15} | {location}")
                     
                     if is_critical:
-                        # 1. Add to screen report
                         critical_errors.append(f"{name} | {location}")
-                        
-                        # 2. Write to permanent log file <--- NEW
                         logger.log_failure(name, location, ip)
 
-            # 4. SUMMARY: Process Critical Failures
             if critical_errors:
-                print("\n   !!! CRITICAL FAILURE REPORT !!!")
-                print(f"   [SAVED] {len(critical_errors)} errors written to logs/")
+                print(f"\n   !!! CRITICAL FAILURES: {len(critical_errors)} !!!")
             
-            print("-" * 40)
+            # Pause before next clear cycle
             time.sleep(10)
 
     except KeyboardInterrupt:
-        print("\n[STOP] Commissioning Engine halted by user.")
+        print("\n[STOP] Halting Engine.")
 
 if __name__ == "__main__":
     main()

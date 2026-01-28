@@ -13,12 +13,12 @@ topology:
             devices:
               # Level 4: The Assets
               - name: "Main_Rack_Switch"
-                ip: "192.168.1.5"
+                ip: "192.168.1.150"
                 driver: "cisco"
                 critical: true
 
               - name: "Loxone_Miniserver_Gen2"
-                ip: "192.168.1.10"
+                ip: "192.168.1.100"
                 driver: "loxone"
                 critical: true
 
@@ -60,11 +60,11 @@ topology:
           - name: "Master Bedroom"
             devices:
               - name: "Wifi_Access_Point_02"
-                ip: "192.168.1.15"
+                ip: "192.168.1.254"
                 driver: "generic"
                 critical: true
 
               - name: "Touch_Pure_Bedside"
-                ip: "192.168.1.60"
+                ip: "192.168.1.249"
                 driver: "loxone"
                 critical: false
