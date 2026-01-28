@@ -1,8 +1,8 @@
 # Project Afara
 
 ![Python](https://img.shields.io/badge/Python-3.9%2B-blue)
-![Status](https://img.shields.io/badge/Status-Active%20Prototype-green)
-![Domain](https://img.shields.io/badge/Domain-Systems%20QA-orange)
+![Status](https://img.shields.io/badge/Status-Phase%204%3A%20Modular%20Beta-green)
+![Domain](https://img.shields.io/badge/Domain-Systems%20Commissioning-orange)
 
 ## Overview
 **Project Afara** (Yoruba for *"The Bridge"*) is an automated testing framework designed to modernize the commissioning and Quality Assurance (QA) of integrated cyber-physical systems.
@@ -18,31 +18,24 @@ To engineer a **Systems Commissioning Middleware** that delivers:
 ## Architecture & Modules
 The framework is designed as a hybrid micro-services architecture, bridging local Python logic with enterprise-grade network emulation.
 
-### Current Implementation (Phase 1)
-* **`cisco_ssh_manager.py` (Live Infrastructure):**
-    Integrated with **Cisco CML (Modeling Labs)** to validate automation logic against real IOSv kernels. It handles SSH session management, privileged execution, and telemetry retrieval via `Netmiko`.
+### Current Implementation (Phase 4: Modular Architecture)
+* **`main.py` (The Engine):**
+    The central coordinator. It reads configuration, loads the correct drivers, and executes monitoring loops. It is designed to run 24/7 in a container.
 
-* **`mock_device_server.py` (Virtual Endpoint):**
-    A TCP-based service simulator that mimics legacy hardware behavior. It enables "Offline-First" development of control drivers.
+* **`drivers/generic.py` (Universal Driver):**
+    The fallback driver for 90% of devices (Apple TV, Sky Q, Cameras). Handles Ping and Port Scanning.
 
-* **`tcp_client_controller.py` (Command Dispatch):**
-    The central control node responsible for dispatching payloads to edge devices (real or virtual) and parsing protocol-specific acknowledgments.
+* **`drivers/loxone.py` (IoT Driver):**
+    A REST API driver connecting Python to Loxone Miniservers. It translates network states into physical actions using persistent state control.
 
-### Implementation (Phase 2: Active Monitoring)
-* **`afara_watchdog.py` (Logic Engine):**
-    A cross-platform service (Windows/Linux/macOS) that polls critical network assets via OS-native ICMP. It features "State Latching" logic to prevent alert fatigue during intermittent network flapping.
-
-* **`loxone_controller.py` (IoT Driver):**
-    A REST API driver connecting Python to Loxone Miniservers. It translates network states into physical actions (e.g., triggering alarms, switching relays, Sending Messages or App notifications to admin or users) using persistent state control (`/On` vs `/Off` logic).
-
-* **`mock_loxone_server.py` (Virtual Controller):**
-    A lightweight HTTP server that emulates the Loxone REST API. It allows developers to validate the Watchdog logic and alarm triggers entirely on localhost, without requiring physical automation hardware.
+* **`tests/` (The Archive):**
+    Contains utility scripts, mock servers, and unit tests used during development (e.g., `mock_loxone_server.py`, `vlan_provisioner.py`).
 
 ## Getting Started
 
 ### Prerequisites
 * Python 3.9+
-* Cisco CML (Optional for live switch testing)
+* Docker (Optional, for production)
 
 ### Installation
 1.  **Clone the repository:**
@@ -74,83 +67,105 @@ The framework is designed as a hybrid micro-services architecture, bridging loca
 
 ## Usage
 
-### Workflow A: Mock Protocol Testing
-To test control logic without physical hardware:
+### Workflow A: Run the Commissioning Engine
+To start the continuous monitoring service (Watchdog Mode):
 
-1.  **Launch the Virtual Endpoint:**
-    ```bash
-    python mock_device_server.py
-    ```
-    *Status: Listening on 127.0.0.1:5001*
+```bash
+python main.py
 
-2.  **Launch the Controller (New Terminal):**
-    ```bash
-    python tcp_client_controller.py
-    ```
-    *Command: Type `POWER_ON` to test the handshake.*
+```
 
-### Workflow B: Live Infrastructure Validation
-To validate network state against Cisco CML or physical switches:
+**What happens?**
 
-1.  **Ensure `.env` is configured correctly.**
-2.  **Execute the Manager:**
-    ```bash
-    python cisco_ssh_manager.py
-    ```
-    *Output: Verifies SSH reachability and retrieves the device hostname.*
+1. The system loads the `GenericDevice` driver to monitor your `DEVICE_IP`.
+2. It loads the `LoxoneManager` driver to connect to your automation controller.
+3. If the device goes offline, it triggers the Loxone Alarm automatically.
 
-### Workflow C: Network Watchdog Service (Hardware)
-To monitor a critical asset and trigger a **physical** Loxone alarm on failure:
+### Workflow B: Run Unit Tests
 
-1.  **Verify Configuration:** Ensure `.env` contains the IP of your **real** Loxone Miniserver (e.g., `192.168.1.100`) and the correct Virtual Input name.
-2.  **Launch the Watchdog:**
-    ```bash
-    python afara_watchdog.py
-    ```
-    * *Status: Polling Target...*
-    * *Action: If the target goes offline, the script sends a command to the physical Miniserver to turn the Alarm State ON.*
+To test specific components without running the main engine:
 
-### Workflow D: Fully Virtualized Commissioning (No Hardware)
-To test the entire "Watchdog -> Alarm" logic chain **without** physical hardware:
+```bash
+# Test the Loxone connection specifically
+python tests/test_loxone.py
 
-1.  **Configure `.env` for Simulation:**
-    ```ini
-    # Point the driver to the Mock Server
-    LOXONE_IP=127.0.0.1:5001
-    LOXONE_USER=test
-    LOXONE_PASS=test
-    ```
-2.  **Start the Mock Server:**
-    ```bash
-    python mock_loxone_server.py
-    ```
-3.  **Run the Watchdog (New Terminal):**
-    ```bash
-    python afara_watchdog.py
-    ```
-    *Result: When the Watchdog triggers an alarm, you will see the "On/Off" command appear in the Mock Server terminal window instead of on a real device.*
+```
+
+### Workflow C: Fully Virtualized Commissioning
+
+To test the entire "Watchdog -> Alarm" logic chain without physical hardware:
+
+1. **Configure `.env` for Simulation:**
+```ini
+# Point the driver to the Mock Server
+LOXONE_IP=127.0.0.1:5001
+LOXONE_USER=test
+LOXONE_PASS=test
+
+```
+
+
+2. **Start the Mock Server:**
+```bash
+python tests/mock_loxone_server.py
+
+```
+
+
+3. **Run the Engine (New Terminal):**
+```bash
+python main.py
+
+```
+
+
+
+## Deployment (Docker)
+
+To run the engine as a background service on a Headless Server (Ubuntu/Linux).
+
+1. **Build the Image:**
+```bash
+docker build -t project-afara:v1 .
+
+```
+
+
+2. **Run in Background:**
+We use `--restart unless-stopped` to ensure the service auto-reboots if the server crashes.
+```bash
+docker run -d \
+  --name afara-engine \
+  --restart unless-stopped \
+  --net=host \
+  --env-file .env \
+  project-afara:v1
+
+```
+
+
+3. **View Live Logs:**
+```bash
+docker logs -f afara-engine
+
+```
+
+
 
 ## Security & Compliance
+
 * **Credential Abstraction:** All sensitive keys and environmental configurations are managed via `.env` abstraction layers.
 * **Operational Safety:** Automation modules operate in read-only telemetry mode by default to ensure non-destructive testing on live infrastructure.
 
-## Deployment (Docker)
-To run the application in a containerized environment (ensuring consistent behavior across Windows/Linux/macOS):
-
-1.  **Build the Image:**
-    ```bash
-    docker build -t project-afara:v1 .
-    ```
-
-2.  **Run the Container:**
-    Injects your local configuration `.env` into the container to allow access to physical hardware.
-    ```bash
-    docker run -it --rm --env-file .env project-afara:v1
-    ```
-
 ## Connect
+
 * **LinkedIn:** [Quadri Bakre](https://www.linkedin.com/in/quadri-bakre) - *Professional updates & Engineering insights*
 * **X:** [@Quadri_Bakre](https://x.com/Quadri_Bakre) - *Real-time R&D updates*
 
 ---
+
 *Maintained by Quadri | Systems Commissioning, Testing & QA Engineer*
+
+```
+
+```
