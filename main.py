@@ -6,16 +6,19 @@ from dotenv import load_dotenv
 # Import core modules
 from core.loader import load_project_topology
 from core.logger import SystemLogger
+
+# Import Drivers
 from drivers.generic import GenericDevice
 from drivers.loxone import LoxoneManager
 from drivers.cisco import CiscoSwitch
+from drivers.crestron import CrestronNVX  # <--- NEW IMPORT
 
 # Load Credentials
 load_dotenv()
 
 def main():
     print("\n" + "="*50)
-    print("   PROJECT AFARA: PHASE 6 (UNIFORM GRID REPORTING)")
+    print("   PROJECT AFARA: PHASE 7 (CRESTRON INTEGRATION)")
     print("="*50 + "\n")
 
     logger = SystemLogger()
@@ -53,9 +56,12 @@ def main():
                 location = f"{device['location']['floor']} > {device['location']['room']}"
                 is_critical = device['critical']
 
+                # --- DRIVER SELECTION ---
                 target = None
                 if driver_type == "cisco":
                     target = CiscoSwitch(ip)
+                elif driver_type == "crestron":  # <--- NEW LOGIC
+                    target = CrestronNVX(ip)
                 elif driver_type == "loxone":
                     target = GenericDevice(ip)
                 else:
@@ -68,9 +74,15 @@ def main():
                 # Extract Data
                 serial = result.get('serial', '---')
                 mac = result.get('mac', '---')
+                error_msg = result.get('error')
                 
-                # Determine Mode Tag
-                mode_tag = "(SSH)" if driver_type == "cisco" else "(PING)"
+                # --- DETERMINE MODE TAG ---
+                if driver_type == "cisco":
+                    mode_tag = "(SSH)"
+                elif driver_type == "crestron":  # <--- NEW TAG
+                    mode_tag = "(REST)"
+                else:
+                    mode_tag = "(PING)"
 
                 # --- PRINTING ---
                 if is_online:
@@ -78,6 +90,11 @@ def main():
                 else:
                     fail_mac = "OFFLINE"
                     fail_serial = "---"
+                    
+                    # If we have a specific error (like "Wrong Password"), show it in the MAC column
+                    if error_msg and "Timeout" not in error_msg:
+                        fail_mac = error_msg
+
                     print(f"   [FAIL] {name:<25} | {mode_tag:<8} | {ip:<15} | {fail_mac:<17} | {fail_serial:<15} | {location}")
                     
                     if is_critical:
