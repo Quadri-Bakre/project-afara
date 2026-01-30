@@ -206,4 +206,6 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 logs/
-ROADMAP.md
+ROADMAP.md~.xlsx
+__pycache__/
+.env

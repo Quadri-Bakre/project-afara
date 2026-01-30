@@ -4,7 +4,7 @@ import platform
 
 # --- NETWORK CONFIGURATION ---
 # Inventory of critical cyber-physical infrastructure
-# [Day 6 Capstone Requirement: Loop through ALL IPs]
+# Loop through ALL IPs
 NETWORK_MAP = {
     # 1. Control4 (Confirmed)
     "Control4_Controller": "192.168.1.110",
