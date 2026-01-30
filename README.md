@@ -1,41 +1,88 @@
 # Project Afara
 
-![Python](https://img.shields.io/badge/Python-3.9%2B-blue)
-![Status](https://img.shields.io/badge/Status-Phase%204%3A%20Modular%20Beta-green)
-![Domain](https://img.shields.io/badge/Domain-Systems%20Commissioning-orange)
+![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
+![Status](https://img.shields.io/badge/Status-Active%20Prototype-yellow)
+![Docker](https://img.shields.io/badge/Container-Native-blueviolet)
+![Domain](https://img.shields.io/badge/Domain-Virtual%20Commissioning-orange)
 
-## Overview
-**Project Afara** (Yoruba for *"The Bridge"*) is an automated testing framework designed to modernize the commissioning and Quality Assurance (QA) of integrated cyber-physical systems.
+> **Engineering Note:** This project is an active R&D initiative. Architectures and APIs are subject to rapid iteration as the methodology for automated physical QA is refined.
 
-In the current Systems Integration landscape, validation is often manual, unscalable, and prone to inconsistency. This project addresses these inefficiencies by applying **DevOps principles**, such as Service Virtualization and Infrastructure-as-Code (IaC), to physical hardware environments.
+## The Mission: DevOps for the Physical Layer
+**Project Afara** (Yoruba for *"The Bridge"*) is a **Virtual Commissioning Framework** designed to bring Continuous Integration (CI) and Automated QA to the world of Audio-Visual (AV) and Cyber-Physical Systems.
 
-## The Objective
-To engineer a **Systems Commissioning Middleware** that delivers:
-1.  **Service Virtualization:** De-coupling control logic from physical dependencies by implementing software mocks for proprietary hardware.
-2.  **Automated Infrastructure Validation:** Programmatic verification of network state via SSH/Netconf rather than manual CLI inspection.
-3.  **Cross-Protocol Interoperability:** A unified abstraction layer that enables heterogeneous systems (Industrial IoT, Enterprise Network, AV) to exchange telemetry.
+In traditional systems integration, software validation is paralyzed by **Hardware Dependency**. Engineers cannot test control logic until physical gear (Crestron processors, Cisco switches) arrives on-site, creating a "Waterfall" bottleneck.
 
-## Architecture & Modules
-The framework is designed as a hybrid micro-services architecture, bridging local Python logic with enterprise-grade network emulation.
+**Afara breaks this dependency.** It decouples control logic from physical hardware, enabling an **"Offline-First"** development workflow where infrastructure is simulated, tested, and validated before deployment.
 
-### Current Implementation (Phase 4: Modular Architecture)
-* **`main.py` (The Engine):**
-    The central coordinator. It reads configuration, loads the correct drivers, and executes monitoring loops. It is designed to run 24/7 in a container.
+## The Key Objective: "Offline" Commissioning
+The primary goal of Project Afara is to decouple project delivery from hardware logistics.
 
-* **`drivers/generic.py` (Universal Driver):**
-    The fallback driver for 90% of devices (Apple TV, Sky Q, Cameras). Handles Ping and Port Scanning.
+In traditional integration, software validation is paralyzed until equipment arrives on site. Afara eliminates this bottleneck, allowing engineers to **fully commission and validate control logic** even when the physical equipment is:
+* In a Warehouse
+* In a Shipping Container
+* In Transit
+* Not yet manufactured
 
-* **`drivers/loxone.py` (IoT Driver):**
-    A REST API driver connecting Python to Loxone Miniservers. It translates network states into physical actions using persistent state control.
+By simulating these devices or connecting to lab equivalents, Afara ensures the system is "Site Ready" before the hardware ever leaves the dock.
 
-* **`tests/` (The Archive):**
-    Contains utility scripts, mock servers, and unit tests used during development (e.g., `mock_loxone_server.py`, `vlan_provisioner.py`).
+## Current State: The Virtual Engine
+**The current build represents the Virtual Commissioning Layer.**
+
+This engine focuses on the **Pre-Deployment Phase**, where equipment is assumed to be off-site or virtual. It connects Excel design documentation to:
+1.  **Virtual Labs:** (Cisco CML, Mock Servers) to prove the network topology works.
+2.  **Staging Environments:** To validate configurations on the bench before shipping.
+
+## The Problem vs. The Solution
+
+| The Traditional Way (Waterfall) | The Afara Way (Agile/DevOps) |
+| :--- | :--- |
+| **Manual Verification:** Engineers type commands into terminals one by one. | **Automated Auditing:** Scripts run thousands of tests against the infrastructure in seconds. |
+| **Hardware Blocked:** Software waits for shipping containers and site readiness. | **Service Virtualization:** Code is tested against Python-based "Mock" servers (Digital Twins). |
+| **Reactive:** Bugs are found on-site, causing costly delays. | **Proactive:** Logic is validated in CI pipelines weeks before site access. |
+
+## Core Capabilities
+
+### 1. Service Virtualization & Mock Environments
+At its core, Afara is a dual-node architecture designed to simulate the physical world:
+* **The Virtual Device (Server):** Python-based listeners (TCP/HTTP) that mimic the behavior of AV processors (e.g., simulating a Loxone Miniserver or Crestron Controller).
+* **The Controller (Client):** A dynamic dispatcher that injects payloads to verify signal integrity without needing the actual device present.
+
+### 2. Data-Driven "Digital Twin" Auditing
+The engine uses standard project documentation as code.
+* **Excel-to-Reality:** Ingests the **Project Schedule (Excel)** as the single source of truth.
+* **Automated Compliance:** Automatically verifies that the live device (MAC Address, Serial Number, Firmware) matches the exact design spec, flagging discrepancies instantly.
+
+### 3. Universal Hardware Abstraction
+A unified driver layer that treats virtual and physical devices identically.
+* **Hybrid Network Support:** Seamlessly switches between controlling virtual labs (Cisco CML) and physical hardware (Cisco Catalyst/SMB) without code changes.
+* **Protocol Agnosticism:** Currently supports SSH (Netmiko), REST APIs, and raw TCP sockets, with an architecture designed to wrap proprietary dialects (e.g., Crestron/Control4 delimiters).
+
+### 4. Enterprise Portability
+* **Dockerized Runtime:** The entire engine runs as a containerized microservice, allowing it to be deployed on a laptop for local testing or a Raspberry Pi/Server for permanent site monitoring.
+* **Forensic Logging:** Generates granular session logs (`logs/`) to provide an audit trail of every connection attempt, failure, and recovery.
+
+## Future Roadmap & Possibilities
+Project Afara is evolving into a full-stack commissioning suite. The current roadmap includes:
+
+* **Protocol Drivers:** Building specific wrappers for vendor dialects (Crestron, Lutron, Q-SYS) to ensure vendor-agnostic control.
+* **CI/CD Integration:** Triggering automated network validation tests via GitHub Actions whenever the project schedule is updated.
+* **Cross-Platform Signaling:** Moving beyond simple chat alerts to industrial standards—using **MQTT and REST** to trigger physical rack indicators, update AV Touch Panels, or log faults directly into facility management software.
+* **Self-Healing Networks:** Moving beyond monitoring to active remediation (e.g., automatically rebooting a PoE port when a WAP goes offline).
+
+## Technical Architecture
+
+The framework is built on a modular Python architecture:
+
+* **`core/`**: The orchestration logic (Loaders, Loggers, Watchdogs).
+* **`drivers/`**: Hardware abstraction layers (Cisco Netmiko, Generic Ping, Mock TCP).
+* **`tools/`**: ETL scripts for converting Excel Data into System Topology.
+* **`integrations/`**: Third-party driver code (e.g., Lua for Control4).
 
 ## Getting Started
 
 ### Prerequisites
-* Python 3.9+
-* Docker (Optional, for production)
+* Python 3.10+
+* Docker (Recommended for simulation)
 
 ### Installation
 1.  **Clone the repository:**
@@ -46,13 +93,13 @@ The framework is designed as a hybrid micro-services architecture, bridging loca
 
 2.  **Set up the environment:**
     ```bash
-    # Windows
-    python -m venv venv
-    .\venv\Scripts\activate
-
     # Mac/Linux
     python3 -m venv venv
     source venv/bin/activate
+
+    # Windows
+    python -m venv venv
+    .\venv\Scripts\activate
     ```
 
 3.  **Install dependencies:**
@@ -60,107 +107,37 @@ The framework is designed as a hybrid micro-services architecture, bridging loca
     pip install -r requirements.txt
     ```
 
-4.  **Configure Environment Variables:**
-    To protect sensitive credentials, this project uses a `.env` file.
-    * Duplicate the template: `cp example.env .env`
-    * Edit `.env` with your local lab credentials (IP, Username, Password).
+4.  **Configuration:**
+    * **Credentials:** Create a `.env` file (copy `example.env`) for secure credential management.
+    * **Topology:** Open `project_schedule.xlsx` to define your Virtual or Physical devices.
 
 ## Usage
 
-### Workflow A: Run the Commissioning Engine
-To start the continuous monitoring service (Watchdog Mode):
+### Option A: Local Run (Development)
+Runs the engine directly on your machine, auto-converting Excel schedules to YAML topology.
 
 ```bash
 python main.py
 
 ```
 
-**What happens?**
+### Option B: Containerized Simulation (Production)
 
-1. The system loads the `GenericDevice` driver to monitor your `DEVICE_IP`.
-2. It loads the `LoxoneManager` driver to connect to your automation controller.
-3. If the device goes offline, it triggers the Loxone Alarm automatically.
-
-### Workflow B: Run Unit Tests
-
-To test specific components without running the main engine:
+Run the engine as an isolated background service.
 
 ```bash
-# Test the Loxone connection specifically
-python tests/test_loxone.py
+docker build -t afara-engine .
+docker run -d --name afara-service --restart unless-stopped afara-engine
 
 ```
 
-### Workflow C: Fully Virtualized Commissioning
+## Connect & Follow the Journey
 
-To test the entire "Watchdog -> Alarm" logic chain without physical hardware:
+This project is part of a broader initiative to modernize Systems Integration.
 
-1. **Configure `.env` for Simulation:**
-```ini
-# Point the driver to the Mock Server
-LOXONE_IP=127.0.0.1:5001
-LOXONE_USER=test
-LOXONE_PASS=test
-
-```
-
-
-2. **Start the Mock Server:**
-```bash
-python tests/mock_loxone_server.py
-
-```
-
-
-3. **Run the Engine (New Terminal):**
-```bash
-python main.py
-
-```
-
-
-
-## Deployment (Docker)
-
-To run the engine as a background service on a Headless Server (Ubuntu/Linux).
-
-1. **Build the Image:**
-```bash
-docker build -t project-afara:v1 .
-
-```
-
-
-2. **Run in Background:**
-We use `--restart unless-stopped` to ensure the service auto-reboots if the server crashes.
-```bash
-docker run -d \
-  --name afara-engine \
-  --restart unless-stopped \
-  --net=host \
-  --env-file .env \
-  project-afara:v1
-
-```
-
-
-3. **View Live Logs:**
-```bash
-docker logs -f afara-engine
-
-```
-
-
-
-## Security & Compliance
-
-* **Credential Abstraction:** All sensitive keys and environmental configurations are managed via `.env` abstraction layers.
-* **Operational Safety:** Automation modules operate in read-only telemetry mode by default to ensure non-destructive testing on live infrastructure.
-
-## Connect
-
-* **LinkedIn:** [Quadri Bakre](https://www.linkedin.com/in/quadri-bakre) - *Professional updates & Engineering insights*
-* **X:** [@Quadri_Bakre](https://x.com/Quadri_Bakre) - *Real-time R&D updates*
+* **Medium:** [Read the Engineering Logs](https://www.google.com/search?q=https://medium.com/%40quadri.bakre)
+* **LinkedIn:** [Quadri Bakre](https://www.linkedin.com/in/quadri-bakre)
+* **X:** [@Quadri_Bakre](https://x.com/Quadri_Bakre)
 
 ---
 
