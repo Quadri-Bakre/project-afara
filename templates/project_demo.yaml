@@ -40,15 +40,15 @@ topology:
         driver: generic
         mode: (PING)
         critical: false
-        username: null
-        password: null
+        username: admin
+        password: Wr6pL7@?e5OM
       - name: ROUT-02
         ip: 10.20.30.2
         driver: generic
         mode: (PING)
         critical: false
-        username: null
-        password: null
+        username: admin
+        password: P521P@s5w0rd
       - name: NETSW-01
         ip: 10.20.30.10
         driver: cisco
@@ -84,9 +84,58 @@ topology:
         critical: false
         username: admin
         password: P521P@s5w0rd
-      - name: Mac_In_Fleet
-        ip: 192.168.0.110
-        driver: ssh
+      - name: PDU-01
+        ip: 10.20.30.80
+        driver: generic
+        mode: (PING)
+        critical: false
+        username: null
+        password: null
+      - name: PDU-02
+        ip: 10.20.30.81
+        driver: generic
+        mode: (PING)
+        critical: false
+        username: null
+        password: null
+      - name: SKY-01
+        ip: 10.23.30.120
+        driver: generic
+        mode: (PING)
+        critical: false
+        username: null
+        password: null
+      - name: SKY-02
+        ip: 10.23.30.121
+        driver: generic
+        mode: (PING)
+        critical: false
+        username: null
+        password: null
+      - name: SKY-03
+        ip: 10.23.30.122
+        driver: generic
+        mode: (PING)
+        critical: false
+        username: null
+        password: null
+      - name: APPLE-01
+        ip: 10.20.30.130
+        driver: generic
+        mode: (PING)
+        critical: false
+        username: null
+        password: null
+      - name: APPLE-02
+        ip: 10.20.30.131
+        driver: generic
+        mode: (PING)
+        critical: false
+        username: null
+        password: null
+      - name: APPLE-03
+        ip: 10.20.30.132
+        driver: generic
         mode: (PING)
         critical: false
         username: null
@@ -105,8 +154,8 @@ topology:
         driver: generic
         mode: (PING)
         critical: false
-        username: null
-        password: null
+        username: admin
+        password: P521P@s5w0rd
     - name: Living Room
       devices:
       - name: WAP-11
@@ -114,8 +163,8 @@ topology:
         driver: generic
         mode: (PING)
         critical: false
-        username: null
-        password: null
+        username: admin
+        password: P521P@s5w0rd
     - name: Master Bedroom
       devices:
       - name: WAP-03
@@ -123,8 +172,8 @@ topology:
         driver: generic
         mode: (PING)
         critical: false
-        username: null
-        password: null
+        username: admin
+        password: P521P@s5w0rd
     - name: Boot Room
       devices:
       - name: WAP-07
@@ -132,8 +181,8 @@ topology:
         driver: generic
         mode: (PING)
         critical: false
-        username: null
-        password: null
+        username: admin
+        password: P521P@s5w0rd
     - name: Drawing Room
       devices:
       - name: WAP-08
@@ -141,8 +190,8 @@ topology:
         driver: generic
         mode: (PING)
         critical: false
-        username: null
-        password: null
+        username: admin
+        password: P521P@s5w0rd
     - name: Guest Bed
       devices:
       - name: WAP-16
@@ -150,8 +199,8 @@ topology:
         driver: generic
         mode: (PING)
         critical: false
-        username: null
-        password: null
+        username: admin
+        password: P521P@s5w0rd
   - type: External
     rooms:
     - name: Garden South
@@ -174,5 +223,5 @@ topology:
         driver: generic
         mode: (PING)
         critical: false
-        username: null
-        password: null
+        username: admin
+        password: P521P@s5w0rd
