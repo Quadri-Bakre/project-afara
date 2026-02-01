@@ -211,3 +211,5 @@ __pycache__/
 .env
 specs/
 backups/
+notes/
+reports/
