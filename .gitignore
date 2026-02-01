@@ -209,3 +209,5 @@ logs/
 ROADMAP.md~.xlsx
 __pycache__/
 .env
+specs/
+backups/
