@@ -19,14 +19,14 @@ class CiscoSwitch:
         return mac_raw
 
     def check_status(self):
-        """Standard SSH Check (Serial, Firmware, MAC)."""
+        """Standard SSH Check (Serial, Firmware, MAC, and Config Backup)."""
         device_config = {
             'device_type': 'cisco_ios',
             'host': self.host,
             'username': self.username,
             'password': self.password,
             'port': 22,
-            'conn_timeout': 5,  # 5s timeout for main check
+            'conn_timeout': 5,
             'auth_timeout': 5,
             'banner_timeout': 10,
         }
@@ -38,6 +38,7 @@ class CiscoSwitch:
 
                 serial = "N/A"
                 firmware = "N/A"
+                backup_filename = "N/A"
                 
                 # 1. Version & Serial
                 try:
@@ -61,6 +62,22 @@ class CiscoSwitch:
                         if int_mac: mac = self._normalize_mac(int_mac.group(1))
                 except: mac = "ONLINE"
 
+                # 3. BACKUP CONFIG
+                try:
+                    config = connection.send_command("show running-config")
+                    
+                    if not os.path.exists("backups"):
+                        os.makedirs("backups")
+                    
+                    # Create a safe filename: switch_IP.cfg
+                    safe_ip = self.host.replace('.', '_')
+                    backup_filename = f"backups/switch_{safe_ip}.cfg"
+                    
+                    with open(backup_filename, "w") as f:
+                        f.write(config)
+                except Exception:
+                    backup_filename = "N/A"
+
                 connection.disconnect()
                 
                 return {
@@ -68,6 +85,7 @@ class CiscoSwitch:
                     "serial": serial,
                     "mac": mac,
                     "firmware": firmware,
+                    "backup_file": backup_filename,
                     "error": None
                 }
 
@@ -82,10 +100,11 @@ class CiscoSwitch:
                 "serial": "---",
                 "mac": "OFFLINE",
                 "firmware": "N/A",
+                "backup_file": "N/A",
                 "error": err_msg
             }
 
-    # --- NEW FUNCTION: GET TEMPERATURE ---
+    # --- GET TEMPERATURE ---
     def get_environment(self):
         """Attempts to fetch temperature from the switch chassis."""
         device_config = {
@@ -93,28 +112,20 @@ class CiscoSwitch:
             'host': self.host,
             'username': self.username,
             'password': self.password,
-            'conn_timeout': 2,  # <--- CRITICAL FIX: Fail fast (2s) if offline
-            'timeout': 5        # Command execution timeout
+            'conn_timeout': 2,
+            'timeout': 5
         }
         
         try:
             with ConnectHandler(**device_config) as conn:
                 conn.enable()
-                # Try standard command
                 out = conn.send_command("show environment temperature")
-                
-                # Regex for "Temperature Value: 24 C" (Catalyst/Nexus)
                 match = re.search(r"(\d+)\s*C", out)
-                if match:
-                    return f"{match.group(1)}°C"
+                if match: return f"{match.group(1)}°C"
                 
-                # If that failed, try "show env all"
                 out_all = conn.send_command("show env all")
                 match_all = re.search(r"(\d+)\s*C", out_all)
-                if match_all:
-                    return f"{match_all.group(1)}°C"
-                    
+                if match_all: return f"{match_all.group(1)}°C"
         except Exception:
             return None
-            
         return None

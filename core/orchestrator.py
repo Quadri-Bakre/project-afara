@@ -103,15 +103,19 @@ class CommissioningOrchestrator:
             status = "[PASS]" if res.get('status') == 'PASS' else "[FAIL]"
             self._print_table_row(status, dev, "(ROUTER)", res.get('mac', 'N/A'), res.get('serial', '---'), res.get('firmware', 'N/A'), None)
             res['status_bool'] = (res.get('status') == 'PASS')
+        
         elif "cisco" in driver:
              target = CiscoSwitch(dev['ip'], dev.get('username'), dev.get('password'))
              check = target.check_status()
+             
              status = "[PASS]" if check['online'] else "[FAIL]"
              mac = "OFFLINE" if not check['online'] else check.get('mac', '---')
+             
              self._print_table_row(status, dev, "(SSH)", mac, check.get('serial', '---'), check.get('firmware', 'N/A'), None)
+             
              res = check
              res['status_bool'] = check['online']
-             res['backup_file'] = None
+             
         else:
             pinger = PingDriver(dev['ip'])
             res = pinger.check_status()
@@ -126,16 +130,13 @@ class CommissioningOrchestrator:
         print("1. General & Environmental (The Physical Layer)")
         print("-" * 40)
         
-        # 1. LIVE LOCATION
         env = EnvDriver()
         data = env.get_status()
         print(f"   [PASS] Location:           {data['location']}")
 
-        # 2. ATTEMPT REAL TEMP (PDU -> Switch -> Simulation)
         real_temp = None
         real_humid = None
         
-        # A) Try PDU First
         if self.inventory['power']:
             target_pdu = self.inventory['power'][0]
             gude = GudePDU(target_pdu['ip'], target_pdu.get('username'), target_pdu.get('password'))
@@ -145,27 +146,24 @@ class CommissioningOrchestrator:
             if sensor_data['humidity']:
                 real_humid = f"{sensor_data['humidity']} (Source: PDU {target_pdu['name']})"
 
-        # B) Try Network Switches (if PDU failed)
         if not real_temp and self.inventory['network']:
             for sw in self.inventory['network']:
                 if "switch" in sw['driver'] or "cisco" in sw['driver']:
-                    # Try to get temp from switch
                     driver = CiscoSwitch(sw['ip'], sw.get('username'), sw.get('password'))
                     temp = driver.get_environment()
                     if temp:
                         real_temp = f"{temp} (Source: Switch {sw['name']})"
-                        break # Found one, stop looking
+                        break
 
-        # 3. PRINT RESULT
         if real_temp:
             print(f"   [PASS] Room Temperature:   {real_temp}")
         else:
-            print(f"   [PASS] Room Temperature:   {data['temp']} (Simulated - No Sensors Found)")
+            print(f"   [PASS] Room Temperature:   {data['temp']} (Fallback / Demo Mode)")
 
         if real_humid:
             print(f"   [PASS] Humidity/Dew Point: {real_humid}")
         else:
-            print(f"   [PASS] Humidity/Dew Point: {data['humidity']} (Simulated - No Sensors Found)")
+            print(f"   [PASS] Humidity/Dew Point: {data['humidity']} (Fallback / Demo Mode)")
 
         print(f"   [PASS] Noise Floor (dB):   {data['noise']} (Quiet)")
         print("")
