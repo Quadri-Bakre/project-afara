@@ -1,50 +1,69 @@
-import yaml
 import os
+import yaml
+import pandas as pd
 
 def load_project_topology(yaml_path):
-    """
-    Parses the YAML topology file and flattens the hierarchy into a linear list of devices.
-    Performs metadata normalization for downstream compatibility.
-    """
-    # Validate file existence
-    if not os.path.exists(yaml_path):
-        print(f"[ERROR] Topology file not found: {yaml_path}")
-        return {'name': 'Unknown Project'}, []
+    # Default Defaults
+    project_meta = {
+        'name': 'Project Afara', 'ref_number': 'REF-0000',
+        'address': 'Unknown Address', 'engineer': 'Unassigned', 'mode': 'Onsite'
+    }
+    
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) 
+    excel_path = os.path.join(base_dir, 'project_schedule.xlsx')
 
+    if not os.path.exists(excel_path):
+        return project_meta, []
+
+    # 1. METADATA (Project Info Tab)
     try:
-        with open(yaml_path, 'r') as f:
-            data = yaml.safe_load(f) or {}
-    except Exception as e:
-        print(f"[ERROR] Failed to parse YAML: {e}")
-        return {'name': 'Error Loading Project'}, []
+        meta_df = pd.read_excel(excel_path, sheet_name='Project Info', header=None)
+        for index, row in meta_df.iterrows():
+            key = str(row[0]).lower().strip()
+            val = str(row[1]).strip()
+            if 'project name' in key: project_meta['name'] = val
+            elif 'ref' in key: project_meta['ref_number'] = val
+            elif 'address' in key: project_meta['address'] = val
+            elif 'engineer' in key: project_meta['engineer'] = val
+            elif 'mode' in key: project_meta['mode'] = val
+    except: pass
 
-    # Normalize project metadata key to 'name' for consumer compatibility
-    if 'name' not in data:
-        data['name'] = data.get('project_name', 'Project Afara')
-
+    # 2. DEVICES (First Tab)
     devices = []
-    
-    # Flatten topology hierarchy (Floor -> Section -> Room -> Devices)
-    for floor in data.get('topology', []):
-        floor_name = floor.get('floor', 'Unknown')
+    try:
+        df = pd.read_excel(excel_path, sheet_name=0)
+        df.columns = [str(c).strip().lower() for c in df.columns]
         
-        for section in floor.get('sections', []):
-            area_type = section.get('type', 'Unknown')
+        for index, row in df.iterrows():
+            ip_col = next((c for c in df.columns if c in ['ip address', 'ip']), None)
+            if not ip_col or pd.isna(row[ip_col]): continue
+
+            name_col = next((c for c in df.columns if c in ['device name', 'name']), None)
+            driver_col = next((c for c in df.columns if c in ['driver', 'type']), None)
+            group_col = next((c for c in df.columns if c in ['group', 'category']), None)
             
-            for room in section.get('rooms', []):
-                room_name = room.get('name', 'Unknown')
-                
-                for device in room.get('devices', []):
-                    # Create isolated copy to prevent mutation of source data
-                    clean_device = device.copy()
-                    
-                    # Inject location context
-                    clean_device['location'] = {
-                        'floor': floor_name,
-                        'area': area_type,
-                        'room': room_name
-                    }
-                    
-                    devices.append(clean_device)
-    
-    return data, devices
+            # --- LOCATION FIX ---
+            floor_col = next((c for c in df.columns if 'floor' in c), None)
+            room_col = next((c for c in df.columns if 'room' in c or 'area' in c), None)
+
+            raw_driver = str(row[driver_col]).strip() if driver_col else "ping_driver"
+            if raw_driver == 'nan': raw_driver = 'ping_driver'
+
+            dev = {
+                'name': str(row[name_col]) if name_col else "Unknown",
+                'ip': str(row[ip_col]).strip(),
+                'driver': raw_driver,
+                'group': str(row[group_col]).strip().lower() if group_col else "general",
+                'username': str(row.get('username', '')).strip(),
+                'password': str(row.get('password', '')).strip(),
+                'critical': False,
+                'location': {
+                    'floor': str(row[floor_col]) if floor_col else "Unknown",
+                    'room': str(row[room_col]) if room_col else "Unknown"
+                }
+            }
+            devices.append(dev)
+    except Exception as e:
+        print(f"[ERROR] Loader Error: {e}")
+
+    return project_meta, devices
