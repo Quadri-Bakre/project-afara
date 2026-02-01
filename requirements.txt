@@ -27,5 +27,6 @@ rich==14.2.0
 ruamel.yaml==0.19.1
 scp==0.15.0
 six==1.17.0
+speedtest-cli==2.1.3
 textfsm==2.1.0
 urllib3==2.6.3
