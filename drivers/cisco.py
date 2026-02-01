@@ -6,23 +6,12 @@ from netmiko import ConnectHandler
 load_dotenv()
 
 class CiscoSwitch:
-    """
-    Unified Cisco Driver.
-    
-    Provides an abstraction layer for communicating with heterogeneous Cisco hardware
-    (Catalyst 1300/SMB vs. Enterprise IOS/CML) by implementing an automatic driver
-    fallback strategy and normalizing hardware identifiers (MAC/Serial).
-    """
     def __init__(self, ip, username=None, password=None):
         self.host = ip
-        # Resolution precedence: Explicit argument > Environment variable
         self.username = username if (username and len(username) > 0) else os.getenv("CISCO_USER")
         self.password = password if (password and len(password) > 0) else os.getenv("CISCO_PASS")
 
     def _normalize_mac(self, mac_raw):
-        """
-        Normalizes MAC addresses to standard colon-separated format (XX:XX:XX:XX:XX:XX).
-        """
         if not mac_raw: return "Unknown"
         clean = re.sub(r'[.\-:]', '', mac_raw).upper()
         if len(clean) == 12:
@@ -30,123 +19,102 @@ class CiscoSwitch:
         return mac_raw
 
     def check_status(self):
-        """
-        Connects to the device, determines the appropriate driver, and retrieves 
-        hardware telemetry (Serial Number and MAC Address).
-        """
-        # Strategy: Attempt 'cisco_s300' first (optimized for Catalyst 1300/SMB),
-        # failing over to 'cisco_ios' (standard Enterprise/CML).
-        drivers_to_try = ['cisco_s300', 'cisco_ios']
-        
-        last_error = ""
+        """Standard SSH Check (Serial, Firmware, MAC)."""
+        device_config = {
+            'device_type': 'cisco_ios',
+            'host': self.host,
+            'username': self.username,
+            'password': self.password,
+            'port': 22,
+            'conn_timeout': 5,  # 5s timeout for main check
+            'auth_timeout': 5,
+            'banner_timeout': 10,
+        }
 
-        for driver in drivers_to_try:
-            device_config = {
-                'device_type': driver,
-                'host': self.host,
-                'username': self.username,
-                'password': self.password,
-                'port': 22,
-                'conn_timeout': 30,
-                'global_delay_factor': 2,
-                'banner_timeout': 60,
+        try:
+            with ConnectHandler(**device_config) as connection:
+                try: connection.enable()
+                except: pass 
+
+                serial = "N/A"
+                firmware = "N/A"
+                
+                # 1. Version & Serial
+                try:
+                    ver_out = connection.send_command("show version")
+                    proc_match = re.search(r"Processor board ID\s+(\w+)", ver_out)
+                    if proc_match: serial = proc_match.group(1)
+                    
+                    fw_match = re.search(r"Version\s+([^,\s]+)", ver_out)
+                    if fw_match: firmware = fw_match.group(1)
+                except: pass
+
+                # 2. MAC Address
+                mac = "Unknown"
+                try:
+                    base_mac = re.search(r"Base [Ee]thernet MAC [Aa]ddress\s*:\s*([0-9a-fA-F:.]+)", ver_out)
+                    if base_mac:
+                        mac = self._normalize_mac(base_mac.group(1))
+                    else:
+                        int_out = connection.send_command("show interface Vlan1")
+                        int_mac = re.search(r"address is ([0-9a-fA-F:.]+)", int_out)
+                        if int_mac: mac = self._normalize_mac(int_mac.group(1))
+                except: mac = "ONLINE"
+
+                connection.disconnect()
+                
+                return {
+                    "online": True,
+                    "serial": serial,
+                    "mac": mac,
+                    "firmware": firmware,
+                    "error": None
+                }
+
+        except Exception as e:
+            err_msg = str(e)
+            if "Authentication" in err_msg: err_msg = "Auth Failed"
+            elif "timed out" in err_msg: err_msg = "Offline"
+            else: err_msg = "Conn Error"
+
+            return {
+                "online": False,
+                "serial": "---",
+                "mac": "OFFLINE",
+                "firmware": "N/A",
+                "error": err_msg
             }
 
-            try:
-                with ConnectHandler(**device_config) as connection:
-                    
-                    # Connection established
-                    
-                    # Attempt privilege escalation to ensure command access (Critical for CML/Virtual)
-                    try: connection.enable()
-                    except: pass 
-
-                    # --- RETRIEVE SERIAL NUMBER ---
-                    serial = "N/A"
-                    try:
-                        inv_out = connection.send_command("show inventory")
-                        
-                        # Match Catalyst 1300 Series format (PID and SN on same line)
-                        c1300_match = re.search(r"PID:.*SN:\s*([A-Z0-9]+)", inv_out, re.IGNORECASE)
-                        
-                        # Match Standard IOS format (SN on dedicated line)
-                        ios_match = re.search(r"SN:\s*(\w+)", inv_out)
-
-                        if c1300_match:
-                            serial = c1300_match.group(1)
-                        elif ios_match:
-                            serial = ios_match.group(1)
-
-                    except:
-                        pass
-
-                    # Fallback: Virtual Processor ID (Required for CML instances)
-                    if serial == "N/A":
-                        try:
-                            ver_out = connection.send_command("show version")
-                            proc_match = re.search(r"Processor board ID\s+(\w+)", ver_out)
-                            if proc_match:
-                                serial = proc_match.group(1) + " (Virt)"
-                        except:
-                            pass
-
-                    # --- RETRIEVE MAC ADDRESS ---
-                    mac = "Unknown"
-                    try:
-                        sys_out = connection.send_command("show system")
-                        
-                        # Match Catalyst 1300/SMB 'System MAC Address' syntax
-                        sys_mac = re.search(r"System MAC Address:\s*([0-9a-fA-F:.]+)", sys_out, re.IGNORECASE)
-                        
-                        # Match Standard 'MAC Address' syntax
-                        std_mac = re.search(r"MAC Address:\s*([0-9a-fA-F:.]+)", sys_out, re.IGNORECASE)
-
-                        if sys_mac:
-                            mac = self._normalize_mac(sys_mac.group(1))
-                        elif std_mac:
-                            mac = self._normalize_mac(std_mac.group(1))
-                        
-                        # Fallback A: IOS Base Ethernet MAC
-                        if mac == "Unknown":
-                            ver_out = connection.send_command("show version")
-                            base_mac = re.search(r"Base [Ee]thernet MAC [Aa]ddress\s*:\s*([0-9a-fA-F:.]+)", ver_out)
-                            if base_mac:
-                                mac = self._normalize_mac(base_mac.group(1))
-                            
-                            # Fallback B: Vlan1 Interface MAC
-                            if mac == "Unknown":
-                                int_out = connection.send_command("show interface Vlan1")
-                                int_mac = re.search(r"address is ([0-9a-fA-F:.]+)", int_out)
-                                if int_mac:
-                                    mac = self._normalize_mac(int_mac.group(1))
-
-                    except:
-                        mac = "ONLINE"
-
-                    connection.disconnect()
-                    
-                    return {
-                        "online": True,
-                        "serial": serial,
-                        "mac": mac,
-                        "error": None
-                    }
-
-            except Exception as e:
-                # Log error and proceed to next driver candidate
-                last_error = str(e)
-                continue
-
-        # --- EXHAUSTED ALL DRIVERS ---
-        err_msg = last_error.split('\n')[0]
-        if "Authentication" in err_msg:
-             err_msg = "Auth Failed"
-        elif "TCP" in err_msg or "timed out" in err_msg:
-             err_msg = "Offline / No Route"
-
-        return {
-            "online": False,
-            "serial": "---",
-            "mac": "OFFLINE",
-            "error": err_msg[:40]
+    # --- NEW FUNCTION: GET TEMPERATURE ---
+    def get_environment(self):
+        """Attempts to fetch temperature from the switch chassis."""
+        device_config = {
+            'device_type': 'cisco_ios',
+            'host': self.host,
+            'username': self.username,
+            'password': self.password,
+            'conn_timeout': 2,  # <--- CRITICAL FIX: Fail fast (2s) if offline
+            'timeout': 5        # Command execution timeout
         }
+        
+        try:
+            with ConnectHandler(**device_config) as conn:
+                conn.enable()
+                # Try standard command
+                out = conn.send_command("show environment temperature")
+                
+                # Regex for "Temperature Value: 24 C" (Catalyst/Nexus)
+                match = re.search(r"(\d+)\s*C", out)
+                if match:
+                    return f"{match.group(1)}°C"
+                
+                # If that failed, try "show env all"
+                out_all = conn.send_command("show env all")
+                match_all = re.search(r"(\d+)\s*C", out_all)
+                if match_all:
+                    return f"{match_all.group(1)}°C"
+                    
+        except Exception:
+            return None
+            
+        return None
