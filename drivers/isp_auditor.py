@@ -1,76 +1,112 @@
 import speedtest
-import json
 import logging
-from datetime import datetime
-
-# Configure module-level logger
-logger = logging.getLogger("Afara.ISP")
+import socket
+import time
+import urllib.request
 
 class ISPAuditor:
     def __init__(self):
-        self.results = {}
+        self.logger = logging.getLogger("Afara.ISP")
+
+    def check_connectivity(self, host="8.8.8.8", port=53, timeout=3):
+        """
+        Simple check to see if we can reach the outside world.
+        """
         try:
-            logger.info("Initializing Speedtest client...")
-            self.st = speedtest.Speedtest()
-        except Exception as e:
-            logger.error(f"Failed to initialize Speedtest: {e}")
-            self.st = None
+            socket.setdefaulttimeout(timeout)
+            socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect((host, port))
+            return True
+        except Exception:
+            return False
+
+    def _measure_http_speed(self):
+        """
+        Fallback: Downloads a 10MB file to calculate raw download speed.
+        Returns: Speed in Mbps (float) or None if failed.
+        """
+        # Tele2 Speedtest Service (Open for public testing)
+        url = "http://speedtest.tele2.net/10MB.zip" 
+        try:
+            start_time = time.time()
+            # Download the file (timeout 15s)
+            with urllib.request.urlopen(url, timeout=15) as response:
+                data = response.read()
+                file_size = len(data) # Size in bytes
+                
+            duration = time.time() - start_time
+            
+            # Calculate Mbps: (Bytes * 8 bits) / (Seconds * 1,000,000)
+            speed_bps = (file_size * 8) / duration
+            speed_mbps = speed_bps / 1_000_000
+            
+            return round(speed_mbps, 2)
+        except Exception:
+            return None
+
+    def _get_public_ip(self):
+        try:
+            return urllib.request.urlopen('https://api.ipify.org', timeout=3).read().decode('utf8')
+        except:
+            return "Unknown"
 
     def run_audit(self):
-        """
-        Runs a full WAN performance audit: Download, Upload, Ping, and Public IP.
-        """
-        if not self.st:
-            return {"error": "Speedtest client not initialized"}
-
-        logger.info("Selecting best server based on ping...")
-        self.st.get_best_server()
-
-        logger.info("Running Download Test...")
-        download_speed = self.st.download() / 1_000_000  # Convert bits to Mbps
-
-        logger.info("Running Upload Test...")
-        upload_speed = self.st.upload() / 1_000_000  # Convert bits to Mbps
-
-        # Get metadata
-        ping = self.st.results.ping
-        client_info = self.st.results.client  # Contains Public IP, ISP Name
-        
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        self.results = {
-            "timestamp": timestamp,
-            "isp_name": client_info.get("isp", "Unknown"),
-            "public_ip": client_info.get("ip", "Unknown"),
-            "country": client_info.get("country", "Unknown"),
-            "download_mbps": round(download_speed, 2),
-            "upload_mbps": round(upload_speed, 2),
-            "ping_ms": round(ping, 2),
-            "status": "PASS" if download_speed > 50 else "WARN_LOW_SPEED" # Example threshold
+        stats = {
+            'isp_name': 'Unknown',
+            'public_ip': 'Unknown',
+            'download_mbps': 0.0,
+            'upload_mbps': 0.0,
+            'ping_ms': 0.0,
+            'status': 'FAIL',
+            'error': None
         }
 
-        self._log_results()
-        return self.results
+        print("   > Contacting Speedtest Servers...")
 
-    def _log_results(self):
-        """
-        Formats the output for the Commissioning Report.
-        """
-        r = self.results
-        logger.info(f"--- ISP AUDIT COMPLETE ---")
-        logger.info(f"Provider:  {r['isp_name']} ({r['country']})")
-        logger.info(f"Public IP: {r['public_ip']}")
-        logger.info(f"Download:  {r['download_mbps']} Mbps")
-        logger.info(f"Upload:    {r['upload_mbps']} Mbps")
-        logger.info(f"Latency:   {r['ping_ms']} ms")
-        logger.info("--------------------------")
+        # --- ATTEMPT 1: OOKLA SPEEDTEST ---
+        try:
+            st = speedtest.Speedtest()
+            st.get_best_server()
+            
+            # ISP Info
+            config = st.get_config()
+            stats['isp_name'] = config['client']['isp']
+            stats['public_ip'] = config['client']['ip']
+            
+            # Speed
+            print("   > Measuring Download Speed (Ookla)...")
+            dl = st.download()
+            print("   > Measuring Upload Speed (Ookla)...")
+            ul = st.upload()
+            
+            stats['download_mbps'] = round(dl / 1_000_000, 2)
+            stats['upload_mbps'] = round(ul / 1_000_000, 2)
+            stats['ping_ms'] = round(st.results.ping, 1)
+            stats['status'] = 'PASS'
+            return stats
 
-    def get_report_json(self):
-        """Returns the data structure for the PDF generator."""
-        return self.results
+        except Exception as e:
+            self.logger.warning(f"Ookla Failed ({e}). Switching to Fallback...")
 
-if __name__ == "__main__":
-    # Self-test block
-    logging.basicConfig(level=logging.INFO)
-    auditor = ISPAuditor()
-    print(json.dumps(auditor.run_audit(), indent=4))
+        # --- ATTEMPT 2: HTTP DOWNLOAD FALLBACK ---
+        print("   > Attempting HTTP Download Fallback...")
+        http_speed = self._measure_http_speed()
+        
+        if http_speed:
+            stats['download_mbps'] = http_speed
+            stats['upload_mbps'] = "N/A" # HTTP test is download only
+            stats['status'] = 'PASS (Fallback)'
+            stats['isp_name'] = "Standard Connection"
+            stats['public_ip'] = self._get_public_ip()
+            stats['error'] = "Used HTTP Fallback (Ookla Blocked)"
+            return stats
+
+        # --- ATTEMPT 3: BASIC CONNECTIVITY ---
+        if self.check_connectivity():
+            stats['status'] = 'PASS (Basic)'
+            stats['error'] = "Speedtest Failed (Internet OK)"
+            stats['isp_name'] = "Connected"
+            stats['public_ip'] = self._get_public_ip()
+        else:
+            stats['error'] = "No Internet Connection"
+
+        return stats
