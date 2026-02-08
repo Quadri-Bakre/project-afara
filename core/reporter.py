@@ -52,7 +52,7 @@ class PDFReporter(FPDF):
             self.ln(5)
             return
 
-        # --- TABLE CONFIGURATION ---
+        # TABLE CONFIGURATION
         headers = ["Status", "Name", "IP Addr", "MAC Addr", "Serial", "FW", "Location"]
         widths =  [15,       50,     30,        35,         35,       25,   50]
 
@@ -103,7 +103,7 @@ class PDFReporter(FPDF):
         
         self.ln(5)
 
-        # --- DIAGNOSTICS SUMMARIES ---
+        # IAGNOSTICS SUMMARIES
         if category == "Network":
             self._add_network_health_summary(devices)
         elif category == "Power":
