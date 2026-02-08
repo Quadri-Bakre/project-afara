@@ -7,8 +7,12 @@ from dotenv import load_dotenv
 from core.loader import load_project_topology
 from core.logger import SystemLogger
 from core.orchestrator import CommissioningOrchestrator
+
+# Import Drivers
 from drivers.cisco import CiscoSwitch
 from drivers.ping_driver import PingDriver 
+from drivers.gude_driver import GudeAuditor
+from drivers.crestron_driver import CrestronAuditor
 
 load_dotenv()
 
@@ -17,23 +21,21 @@ def main():
     current_dir = os.path.dirname(os.path.abspath(__file__))
     yaml_path = os.path.join(current_dir, 'templates', 'project_demo.yaml')
     
-    # 1. Load Data (Reads Project Info + Devices from Excel)
     project_meta, devices = load_project_topology(yaml_path)
 
     if not devices:
         print("[ERROR] No devices found in Excel. Exiting.")
         return
 
-    # Log the session start
     logger.log_header(project_meta.get('name', 'Project Afara'))
     
     # ==================================================
-    # COMMISSIONING ORCHESTRATOR
+    # COMMISSIONING (Run Audit & Cache Data)
     # ==================================================
-    # This runs the "Master Spec" sequence
     try:
         orchestrator = CommissioningOrchestrator(project_meta, devices)
-        orchestrator.run_full_sequence()
+        # Update devices list with cached serials/macs
+        devices = orchestrator.run_full_sequence() 
     except KeyboardInterrupt:
         print("\n\n[STOP] Commissioning sequence aborted by user.")
         return
@@ -42,11 +44,10 @@ def main():
         return
     
     # ==================================================
-    # LIVE MONITORING LOOP (Post-Commissioning)
+    # LIVE MONITORING
     # ==================================================
     print(f"[START] Entering Live Monitoring Mode for {len(devices)} assets...\n")
     
-    # Define Header String (Matched to Orchestrator with Firmware Column)
     header = f"   {'STATUS':<7} {'NAME':<25} | {'MODE':<8} | {'IP ADDRESS':<15} | {'MAC ADDRESS':<17} | {'SERIAL':<15} | {'FIRMWARE':<10} | LOCATION"
     separator = "   " + "-"*135
 
@@ -61,55 +62,72 @@ def main():
                 name = device['name']
                 ip = device['ip']
                 driver_type = device['driver'].lower()
-                
+                group = device.get('group', '').lower()
                 location = f"{device['location']['floor']} > {device['location']['room']}"
                 
-                # --- Driver Selection ---
                 target = None
                 mode_tag = "(PING)"
-                
-                # Use CiscoSwitch for SSH if type is switch + cisco
-                if "cisco" in driver_type and "switch" in driver_type:
+                res = {}
+
+                # 1. GUDE (HTTP)
+                if "gude" in driver_type:
+                     mode_tag = "(HTTP)"
+                     target = GudeAuditor(ip, device.get('username'), device.get('password'))
+                     full_audit = target.audit_firmware_and_config()
+                     res = {
+                         'online': (full_audit.get('status') == 'PASS'),
+                         'mac': full_audit.get('mac'),
+                         'serial': full_audit.get('serial'),
+                         'firmware': full_audit.get('firmware')
+                     }
+
+                # 2. CRESTRON (SSH)
+                elif "crestron" in driver_type:
+                     mode_tag = "(SSH)"
+                     target = CrestronAuditor(ip, device.get('username'), device.get('password'))
+                     full_audit = target.audit_firmware_and_config()
+                     res = {
+                         'online': (full_audit.get('status') == 'PASS'),
+                         'mac': full_audit.get('mac'),
+                         'serial': full_audit.get('serial'),
+                         'firmware': full_audit.get('firmware')
+                     }
+
+                # 3. CISCO (SSH)
+                elif "cisco" in driver_type and "switch" in driver_type:
                      target = CiscoSwitch(ip, device.get('username'), device.get('password'))
                      mode_tag = "(SSH)"
+                     res = target.check_status()
+
+                # 4. DEFAULT (PING)
                 else:
                      target = PingDriver(ip)
                      mode_tag = "(PING)"
+                     res = target.check_status()
 
-                # --- Check Status ---
-                res = target.check_status()
-                
-                # --- Format Data (Sanitize Lists to prevent crashes) ---
-                is_online = res['online']
+                # DATA DISPLAY LOGIC
+                is_online = res.get('online', False)
                 status = "[PASS]" if is_online else "[FAIL]"
                 
-                mac = res.get('mac', '---')
+                # Fetch Persistent Info (Cached from Commissioning Step)
+                # This ensures info gathered during startup is shown even in Ping mode
+                mac = res.get('mac') or device.get('mac', '---')
+                serial = res.get('serial') or device.get('serial', '---')
+                firmware = res.get('firmware') or device.get('firmware', 'N/A')
+
+                # Normalize Strings
                 if isinstance(mac, list): mac = str(mac[0])
-                
-                serial = res.get('serial', '---')
                 if isinstance(serial, list): serial = str(serial[0])
                 
-                # Firmware default for live loop
-                firmware = "N/A"
-
-                # Normalize length for table alignment
-                mac = str(mac)[:17]
-                serial = str(serial)[:15]
-
                 if not is_online:
                     mac = "OFFLINE"
-                    # If there's a specific error (like Auth Fail), show it instead of OFFLINE
-                    if res.get('error'): 
-                        mac = str(res['error'])[:17]
+                    if res.get('error'): mac = str(res['error'])[:17]
                 
-                # Print Row
-                print(f"   {status:<7} {name:<25} | {mode_tag:<8} | {ip:<15} | {mac:<17} | {serial:<15} | {firmware:<10} | {location}")
+                print(f"   {status:<7} {name:<25} | {mode_tag:<8} | {ip:<15} | {str(mac)[:17]:<17} | {str(serial)[:15]:<15} | {str(firmware)[:10]:<10} | {location}")
             
-            # Wait 15 seconds before next scan
             time.sleep(15)
 
     except KeyboardInterrupt:
-        
         print("\n\n[STOP] Halting Engine. Goodbye.")
 
 if __name__ == "__main__":

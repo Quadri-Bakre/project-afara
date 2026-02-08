@@ -8,7 +8,8 @@ from drivers.router_auditor import RouterAuditor
 from drivers.ping_driver import PingDriver
 from drivers.cisco import CiscoSwitch
 from drivers.env_driver import EnvDriver
-from drivers.gude_pdu import GudePDU
+from drivers.gude_driver import GudeAuditor
+from drivers.crestron_driver import CrestronAuditor
 from core.reporter import PDFReporter
 
 class CommissioningOrchestrator:
@@ -48,6 +49,8 @@ class CommissioningOrchestrator:
         self._run_step_7_rms()
         self._print_footer()
         self._generate_pdf_report()
+        # Return updated devices list to Main for the Live Loop
+        return self.devices
 
     def _generate_pdf_report(self):
         print("   [INFO] Generating PDF Report...")
@@ -137,12 +140,14 @@ class CommissioningOrchestrator:
         for dev in devices:
             res = self._audit_device_logic(dev)
             
-            # --- PoE / Extra Info Logic ---
-            # If no extra info was generated (e.g., Router logic now puts NAT info elsewhere),
-            # ensure to show "---" in the table column for Network group.
+            # CACHE DATA (For Live Loop Persistence)
+            if res.get('serial') and res.get('serial') != '---': dev['serial'] = res['serial']
+            if res.get('firmware') and res.get('firmware') != 'N/A': dev['firmware'] = res['firmware']
+            if res.get('mac') and res.get('mac') != 'N/A': dev['mac'] = res['mac']
+
+            # Extra Info Logic
             final_info = res.get('extra_info', '')
-            if group_name == 'Network' and not final_info:
-                final_info = "---"
+            if not final_info: final_info = "---"
 
             report_entry = {**dev, **res}
             report_entry['extra_info'] = final_info 
@@ -167,24 +172,45 @@ class CommissioningOrchestrator:
         res = {}
         mode = "(PING)"
         
-        if "router" in driver:
+        # 1. GUDE PDU
+        if "gude" in driver:
+            mode = "(HTTP)"
+            target = GudeAuditor(dev['ip'], dev.get('username'), dev.get('password'))
+            res = target.audit_firmware_and_config()
+            status = "[PASS]" if res.get('status') == 'PASS' else "[FAIL]"
+            res['status_bool'] = (res.get('status') == 'PASS')
+            
+            # Format Power Metrics
+            if res.get('power_metrics') and res.get('power_metrics') != "N/A":
+                res['extra_info'] = f"{res['power_metrics']}"
+            else:
+                res['extra_info'] = "N/A"
+
+        # 2. CRESTRON (NEW)
+        elif "crestron" in driver:
+            mode = "(SSH)"
+            target = CrestronAuditor(dev['ip'], dev.get('username'), dev.get('password'))
+            res = target.audit_firmware_and_config()
+            status = "[PASS]" if res.get('status') == 'PASS' else "[FAIL]"
+            res['status_bool'] = (res.get('status') == 'PASS')
+            
+            # Show connected device count in report
+            count = len(res.get('connected_devices', []))
+            if count > 0:
+                res['extra_info'] = f"{count} Peripherals Found"
+            else:
+                res['extra_info'] = "Processor Only"
+
+        # 3. ROUTER
+        elif "router" in driver:
             mode = "(ROUTER)"
             raut = RouterAuditor(dev['ip'], dev.get('username'), dev.get('password'), driver)
             res = raut.audit_firmware_and_config()
             status = "[PASS]" if res.get('status') == 'PASS' else "[FAIL]"
             res['status_bool'] = (res.get('status') == 'PASS')
-            
-            # --- DOUBLE NAT CHECK ---
-            public_ip = self.report_data.get('isp', {}).get('public_ip', 'Unknown')
-            router_ips = res.get('wan_ips', [])
-            
-            if public_ip != 'Unknown' and public_ip in router_ips:
-                res['nat_status'] = "NAT Mode: Bridge (Optimal)"
-            elif public_ip != 'Unknown':
-                res['nat_status'] = "NAT Mode: Double NAT (Warning)"
-            else:
-                res['nat_status'] = None
+            res['extra_info'] = res.get('nat_status', '')
 
+        # 4. CISCO SWITCH
         elif "cisco" in driver:
              mode = "(SSH)"
              target = CiscoSwitch(dev['ip'], dev.get('username'), dev.get('password'))
@@ -199,6 +225,7 @@ class CommissioningOrchestrator:
              res['status_bool'] = check['online']
              res['extra_info'] = poe_str 
 
+        # 5. DEFAULT (PING)
         else:
             mode = "(PING)"
             pinger = PingDriver(dev['ip'])
@@ -206,13 +233,11 @@ class CommissioningOrchestrator:
             status = "[PASS]" if res['online'] else "[FAIL]"
             res['status_bool'] = res['online']
         
-        # Display Console Row
+        # Display Row
         mac = "OFFLINE" if not res.get('status_bool') else res.get('mac', '---')
         self._print_table_row(status, dev, mode, mac, res.get('serial', '---'), res.get('firmware', 'N/A'))
         
         return res
-
-    # --- STEPS DEFINED EXPLICITLY ---
 
     def _run_step_1_environmental(self):
         print("1. General & Environmental (The Physical Layer)")
@@ -229,22 +254,27 @@ class CommissioningOrchestrator:
     def _run_step_2_network(self):
         print("2. Network (The Backbone)")
         print("-" * 40)
+        
+        # WAN AUDIT PRINT BLOCK
         print("Verifying WAN Performance...")
         auditor = ISPAuditor()
+        
         stats = auditor.run_audit()
         self.report_data['isp'] = stats
+        
         if stats.get('status') != 'FAIL':
             print("\n   ----------------------------------------")
             print("   WAN AUDIT REPORT")
             print("   ----------------------------------------")
             print(f"   Provider:   {stats.get('isp_name', 'Unknown')}")
             print(f"   Public IP:  {stats.get('public_ip', 'Unknown')}")
-            print(f"   Download:   {stats.get('download_mbps')} Mbps")
-            print(f"   Upload:     {stats.get('upload_mbps')} Mbps")
-            print(f"   Latency:    {stats.get('ping_ms')} ms")
+            print(f"   Download:   {stats.get('download_mbps', 0)} Mbps")
+            print(f"   Upload:     {stats.get('upload_mbps', 0)} Mbps")
+            print(f"   Latency:    {stats.get('ping_ms', 0)} ms")
             print("   ----------------------------------------\n")
         else:
             print(f"   [FAIL] ISP Check Failed: {stats.get('error')}\n")
+            
         self._audit_group('Network', self.inventory['network'])
 
     def _run_step_3_power(self):
