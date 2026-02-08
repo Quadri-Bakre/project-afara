@@ -7,6 +7,34 @@ topology:
     rooms:
     - name: Plant Room
       devices:
+      - name: PDU-01
+        ip: 10.20.30.80
+        driver: ''
+        mode: (PING)
+        critical: true
+        username: null
+        password: null
+      - name: PDU-02
+        ip: 10.20.30.81
+        driver: ''
+        mode: (PING)
+        critical: true
+        username: null
+        password: null
+      - name: Office_Router
+        ip: 10.20.30.1
+        driver: ''
+        mode: (PING)
+        critical: true
+        username: admin
+        password: Samsung123
+      - name: Office_Test_Switch
+        ip: 10.20.30.10
+        driver: ''
+        mode: (PING)
+        critical: true
+        username: cisco
+        password: Equ!ppd2025!
       - name: afara_rout_01
         ip: 192.168.1.182
         driver: ''
@@ -18,7 +46,7 @@ topology:
         ip: 10.20.30.10
         driver: ''
         mode: (PING)
-        critical: false
+        critical: true
         username: cisco
         password: null
       - name: Cisco_CML_Switch_01
@@ -32,121 +60,135 @@ topology:
         ip: 192.168.1.151
         driver: ''
         mode: (PING)
-        critical: false
+        critical: true
         username: admin
         password: Cisco123!
       - name: Fleet_Router
         ip: 192.168.0.1
         driver: ''
         mode: (PING)
-        critical: false
+        critical: true
         username: null
         password: null
       - name: ROUT-01
         ip: 10.20.30.1
         driver: ''
         mode: (PING)
-        critical: false
+        critical: true
         username: admin
         password: null
       - name: ROUT-02
         ip: 10.20.30.2
         driver: ''
         mode: (PING)
-        critical: false
+        critical: true
         username: admin
         password: null
       - name: NETSW-01
         ip: 10.20.30.10
         driver: ''
         mode: (PING)
-        critical: false
+        critical: true
         username: admin
-        password: null
+        password: P521P@s5w0rd
       - name: NETSW-02
         ip: 10.20.30.11
         driver: ''
         mode: (PING)
-        critical: false
+        critical: true
         username: admin
-        password: null
+        password: P521P@s5w0rd
       - name: NETSW-03
         ip: 10.20.30.12
         driver: ''
         mode: (PING)
-        critical: false
+        critical: true
         username: admin
-        password: null
+        password: P521P@s5w0rd
       - name: NETSW-04
         ip: 10.20.30.13
         driver: ''
         mode: (PING)
-        critical: false
+        critical: true
         username: admin
-        password: null
+        password: P521P@s5w0rd
       - name: NETSW-05
         ip: 10.20.30.14
         driver: ''
         mode: (PING)
-        critical: false
+        critical: true
         username: admin
-        password: null
-      - name: PDU-01
-        ip: 10.20.30.80
-        driver: ''
-        mode: (PING)
-        critical: false
-        username: null
-        password: null
-      - name: PDU-02
-        ip: 10.20.30.81
-        driver: ''
-        mode: (PING)
-        critical: false
-        username: null
-        password: null
+        password: P521P@s5w0rd
       - name: SKY-01
         ip: 10.23.30.120
         driver: ''
         mode: (PING)
-        critical: false
+        critical: true
         username: null
         password: null
       - name: SKY-02
         ip: 10.23.30.121
         driver: ''
         mode: (PING)
-        critical: false
+        critical: true
         username: null
         password: null
       - name: SKY-03
         ip: 10.23.30.122
         driver: ''
         mode: (PING)
-        critical: false
+        critical: true
         username: null
         password: null
       - name: APPLE-01
         ip: 10.20.30.130
         driver: ''
         mode: (PING)
-        critical: false
+        critical: true
         username: null
         password: null
       - name: APPLE-02
         ip: 10.20.30.131
         driver: ''
         mode: (PING)
-        critical: false
+        critical: true
         username: null
         password: null
       - name: APPLE-03
         ip: 10.20.30.132
         driver: ''
         mode: (PING)
-        critical: false
+        critical: true
         username: null
         password: null
+      - name: CP4-R-Processor
+        ip: 10.20.30.50
+        driver: ''
+        mode: (PING)
+        critical: true
+        username: admin
+        password: P521P@s5w0rd
+      - name: NAX-01
+        ip: 10.20.30.100
+        driver: ''
+        mode: (PING)
+        critical: true
+        username: admin
+        password: P521P@s5w0rd
+      - name: NAX-02
+        ip: 10.20.30.101
+        driver: ''
+        mode: (PING)
+        critical: true
+        username: admin
+        password: P521P@s5w0rd
+      - name: TS-770-Kitchen
+        ip: 10.20.30.65
+        driver: ''
+        mode: (PING)
+        critical: true
+        username: admin
+        password: P521P@s5w0rd
     - name: Cinema
       devices:
       - name: Cinema_NVX
@@ -160,7 +202,7 @@ topology:
         ip: DHCP
         driver: ''
         mode: (PING)
-        critical: false
+        critical: true
         username: admin
         password: null
     - name: Living Room
@@ -169,7 +211,7 @@ topology:
         ip: DHCP
         driver: ''
         mode: (PING)
-        critical: false
+        critical: true
         username: admin
         password: null
     - name: Master Bedroom
@@ -178,7 +220,7 @@ topology:
         ip: DHCP
         driver: ''
         mode: (PING)
-        critical: false
+        critical: true
         username: admin
         password: null
     - name: Boot Room
@@ -187,7 +229,7 @@ topology:
         ip: DHCP
         driver: ''
         mode: (PING)
-        critical: false
+        critical: true
         username: admin
         password: null
     - name: Drawing Room
@@ -196,7 +238,7 @@ topology:
         ip: DHCP
         driver: ''
         mode: (PING)
-        critical: false
+        critical: true
         username: admin
         password: null
     - name: Guest Bed
@@ -205,7 +247,7 @@ topology:
         ip: DHCP
         driver: ''
         mode: (PING)
-        critical: false
+        critical: true
         username: admin
         password: null
   - type: External
@@ -216,7 +258,7 @@ topology:
         ip: 192.168.1.201
         driver: ''
         mode: (PING)
-        critical: false
+        critical: true
         username: null
         password: null
 - floor: First Floor
@@ -229,19 +271,6 @@ topology:
         ip: 10.20.30.3
         driver: ''
         mode: (PING)
-        critical: false
-        username: admin
-        password: null
-- floor: ''
-  sections:
-  - type: ''
-    rooms:
-    - name: ''
-      devices:
-      - name: CP-01
-        ip: 192.168.1.10
-        driver: ''
-        mode: (PING)
-        critical: false
+        critical: true
         username: admin
         password: null
