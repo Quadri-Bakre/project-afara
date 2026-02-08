@@ -7,6 +7,13 @@ topology:
     rooms:
     - name: Plant Room
       devices:
+      - name: NUC-01
+        ip: 192.168.1.200
+        driver: ''
+        mode: (PING)
+        critical: true
+        username: quadri
+        password: '951525'
       - name: PDU-01
         ip: 10.20.30.80
         driver: ''

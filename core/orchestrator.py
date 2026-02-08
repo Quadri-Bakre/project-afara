@@ -10,6 +10,7 @@ from drivers.cisco import CiscoSwitch
 from drivers.env_driver import EnvDriver
 from drivers.gude_driver import GudeAuditor
 from drivers.crestron_driver import CrestronAuditor
+from drivers.windows import WindowsProbe
 from core.reporter import PDFReporter
 
 class CommissioningOrchestrator:
@@ -90,6 +91,16 @@ class CommissioningOrchestrator:
                 pdf.add_section_title(title)
                 devices = self.report_data['groups'].get(key, [])
                 pdf.add_device_table(devices, category=key)
+
+                if key == "RMS" and devices:
+                    diagnostics = [d for d in devices if d.get('extra_info') and d['extra_info'] != '---']
+                    if diagnostics:
+                        pdf.set_font("Arial", "B", 10)
+                        pdf.cell(0, 8, "Diagnostics & Health Check:", ln=True)
+                        pdf.set_font("Arial", "", 9)
+                        for dev in diagnostics:
+                            pdf.cell(0, 6, f"[INFO] {dev['name']}: {dev['extra_info']}", ln=True)
+                        pdf.ln(5)
 
             filename = f"Afara_Report_{self.meta.get('ref_number', 'Draft')}_{datetime.now().strftime('%H%M')}.pdf"
             path = pdf.save_report(filename)
@@ -186,7 +197,7 @@ class CommissioningOrchestrator:
             else:
                 res['extra_info'] = "N/A"
 
-        # 2. CRESTRON (NEW)
+        # 2. CRESTRON
         elif "crestron" in driver:
             mode = "(SSH)"
             target = CrestronAuditor(dev['ip'], dev.get('username'), dev.get('password'))
@@ -194,14 +205,28 @@ class CommissioningOrchestrator:
             status = "[PASS]" if res.get('status') == 'PASS' else "[FAIL]"
             res['status_bool'] = (res.get('status') == 'PASS')
             
-            # Show connected device count in report
             count = len(res.get('connected_devices', []))
             if count > 0:
                 res['extra_info'] = f"{count} Peripherals Found"
             else:
                 res['extra_info'] = "Processor Only"
 
-        # 3. ROUTER
+        # 3. WINDOWS PROBE
+        elif "windows" in driver:
+            mode = "(SSH)"
+            target = WindowsProbe(dev['ip'], dev.get('username'), dev.get('password'))
+            res = target.run()
+            status = "[PASS]" if res.get('status') == 'PASS' else "[FAIL]"
+            res['status_bool'] = (res.get('status') == 'PASS')
+            
+            res['firmware'] = res.get('version', 'N/A')
+            
+            # --- UPDATED SECTION FOR PDF SUMMARY ---
+            os_ver = res.get('version', 'Unknown')
+            uptime = res.get('uptime', 'Unknown')
+            res['extra_info'] = f"{os_ver} | Up: {uptime}"
+
+        # 4. ROUTER
         elif "router" in driver:
             mode = "(ROUTER)"
             raut = RouterAuditor(dev['ip'], dev.get('username'), dev.get('password'), driver)
@@ -210,7 +235,7 @@ class CommissioningOrchestrator:
             res['status_bool'] = (res.get('status') == 'PASS')
             res['extra_info'] = res.get('nat_status', '')
 
-        # 4. CISCO SWITCH
+        # 5. CISCO SWITCH
         elif "cisco" in driver:
              mode = "(SSH)"
              target = CiscoSwitch(dev['ip'], dev.get('username'), dev.get('password'))
@@ -225,7 +250,7 @@ class CommissioningOrchestrator:
              res['status_bool'] = check['online']
              res['extra_info'] = poe_str 
 
-        # 5. DEFAULT (PING)
+        # 6. DEFAULT (PING)
         else:
             mode = "(PING)"
             pinger = PingDriver(dev['ip'])

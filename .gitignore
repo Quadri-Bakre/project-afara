@@ -216,3 +216,6 @@ reports/
 venv_mac/
 venv_win/
 templates/ROADMAP.md
+tests/
+folder_structure.txt
+project_schedule.xlsx

@@ -13,6 +13,7 @@ from drivers.cisco import CiscoSwitch
 from drivers.ping_driver import PingDriver 
 from drivers.gude_driver import GudeAuditor
 from drivers.crestron_driver import CrestronAuditor
+from drivers.windows import WindowsProbe
 
 load_dotenv()
 
@@ -93,13 +94,25 @@ def main():
                          'firmware': full_audit.get('firmware')
                      }
 
-                # 3. CISCO (SSH)
+                # 3. WINDOWS (SSH)
+                elif "windows" in driver_type:
+                     mode_tag = "(SSH)"
+                     target = WindowsProbe(ip, device.get('username'), device.get('password'))
+                     full_audit = target.run()
+                     res = {
+                         'online': (full_audit.get('status') == 'PASS'),
+                         'mac': full_audit.get('mac'),
+                         'serial': full_audit.get('serial'),
+                         'firmware': full_audit.get('version')
+                     }
+
+                # 4. CISCO (SSH)
                 elif "cisco" in driver_type and "switch" in driver_type:
                      target = CiscoSwitch(ip, device.get('username'), device.get('password'))
                      mode_tag = "(SSH)"
                      res = target.check_status()
 
-                # 4. DEFAULT (PING)
+                # 5. DEFAULT (PING)
                 else:
                      target = PingDriver(ip)
                      mode_tag = "(PING)"
@@ -110,7 +123,6 @@ def main():
                 status = "[PASS]" if is_online else "[FAIL]"
                 
                 # Fetch Persistent Info (Cached from Commissioning Step)
-                # This ensures info gathered during startup is shown even in Ping mode
                 mac = res.get('mac') or device.get('mac', '---')
                 serial = res.get('serial') or device.get('serial', '---')
                 firmware = res.get('firmware') or device.get('firmware', 'N/A')
