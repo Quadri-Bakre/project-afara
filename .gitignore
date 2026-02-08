@@ -213,3 +213,6 @@ specs/
 backups/
 notes/
 reports/
+venv_mac/
+venv_win/
+templates/ROADMAP.md
