@@ -53,12 +53,16 @@ class PDFReporter(FPDF):
             return
 
         # --- TABLE CONFIGURATION ---
+        headers = ["Status", "Name", "IP Addr", "MAC Addr", "Serial", "FW", "Location"]
+        widths =  [15,       50,     30,        35,         35,       25,   50]
+
+        # Add Specific Columns
         if category == "Network":
-            widths = [15, 40, 28, 32, 45, 30, 35, 50] 
-            headers = ["Status", "Name", "IP Addr", "MAC Addr", "Serial", "FW", "Location", "PoE Status"]
-        else:
-            widths = [15, 55, 35, 35, 50, 35, 50] 
-            headers = ["Status", "Name", "IP Addr", "MAC Addr", "Serial", "FW", "Location"]
+            headers.append("PoE Status")
+            widths = [15, 40, 28, 32, 35, 25, 35, 50] 
+        elif category == "Power":
+            headers.append("Load (V/A)")
+            widths = [15, 40, 28, 32, 35, 25, 35, 50] 
 
         # HEADER
         self.set_font('Arial', 'B', 8)
@@ -72,8 +76,8 @@ class PDFReporter(FPDF):
         for d in devices:
             status = "PASS" if d.get('status_bool') else "FAIL"
             
-            name = d.get('name', 'N/A')[:35]
-            ip = d.get('ip', 'N/A')
+            name = str(d.get('name', 'N/A'))[:35]
+            ip = str(d.get('ip', 'N/A'))
             
             mac = d.get('mac', '---')
             if isinstance(mac, list): mac = str(mac[0])
@@ -88,54 +92,33 @@ class PDFReporter(FPDF):
 
             row_data = [status, name, ip, mac, serial, fw, location]
 
-            if category == "Network":
-                poe_status = d.get('extra_info', '')
-                row_data.append(poe_status)
+            if category == "Network" or category == "Power":
+                extra = str(d.get('extra_info', '---'))
+                row_data.append(extra)
 
             # Draw Cells
             for i, data in enumerate(row_data):
-                text = str(data)
-                self.cell(widths[i], 8, text, 1, 0, 'L')
+                self.cell(widths[i], 8, str(data), 1, 0, 'L')
             self.ln()
         
         self.ln(5)
 
-        # --- DIAGNOSTICS SUMMARY (NETWORK ONLY) ---
+        # --- DIAGNOSTICS SUMMARIES ---
         if category == "Network":
             self._add_network_health_summary(devices)
+        elif category == "Power":
+            self._add_power_health_summary(devices)
 
     def _add_network_health_summary(self, devices):
-        """Analyzes Uptime, Port Errors, VLANs, and NAT Status."""
+        """Restores the full network diagnostics block."""
         self.set_font('Arial', 'B', 9)
         self.cell(0, 8, "Diagnostics & Health Check for Online Devices:", 0, 1)
+        self.set_font('Arial', '', 8)
         
         has_warnings = False
-        self.set_font('Arial', '', 8)
 
         for d in devices:
-            # 1. Port Errors (Red)
-            errors = d.get('port_errors', [])
-            if errors and isinstance(errors, list) and len(errors) > 0:
-                has_warnings = True
-                self.set_text_color(200, 0, 0) 
-                error_str = ", ".join(errors)
-                self.cell(0, 6, f" [WARNING] {d['name']}: Detected Physical Layer Errors - {error_str}", 0, 1)
-            
-            # 2. Uptime (Green)
-            uptime = d.get('uptime')
-            if uptime and uptime != "N/A":
-                self.set_text_color(0, 100, 0)
-                self.cell(0, 6, f" [INFO] {d['name']} Uptime: {uptime}", 0, 1)
-
-            # 3. VLAN Database (Blue)
-            vlans = d.get('vlans')
-            if vlans and isinstance(vlans, list) and len(vlans) > 0:
-                self.set_text_color(0, 0, 150) # Dark Blue
-                vlan_str = ", ".join(vlans[:15]) 
-                if len(vlans) > 15: vlan_str += "..."
-                self.cell(0, 6, f" [INFO] {d['name']} VLAN Database (Configured): {vlan_str}", 0, 1)
-
-            # 4. NAT Status (Orange for Double NAT, Green for Bridge) - NEW
+            # 1. NAT Status (Routers)
             nat = d.get('nat_status')
             if nat:
                 if "Double" in nat:
@@ -145,12 +128,67 @@ class PDFReporter(FPDF):
                     self.set_text_color(0, 100, 0) # Green
                     self.cell(0, 6, f" [INFO] {d['name']}: {nat}", 0, 1)
 
+            # 2. VLAN Database (Switches)
+            vlans = d.get('vlans')
+            if vlans and isinstance(vlans, list):
+                self.set_text_color(0, 0, 150) # Blue
+                v_str = ", ".join(vlans[:10])
+                if len(vlans) > 10: v_str += "..."
+                self.cell(0, 6, f" [INFO] {d['name']} VLAN Database (Configured): {v_str}", 0, 1)
+
+            # 3. Port Errors (Switches)
+            errors = d.get('port_errors')
+            if errors and isinstance(errors, list):
+                has_warnings = True
+                self.set_text_color(200, 0, 0) # Red
+                err_str = ", ".join(errors)
+                self.cell(0, 6, f" [WARNING] {d['name']} Port Errors: {err_str}", 0, 1)
+
+        # 4. Global Clean Bill of Health (if no specific errors found)
         if not has_warnings:
-            self.set_text_color(0, 0, 0) # Black
+            self.set_text_color(0, 0, 0)
             self.cell(0, 6, " No physical cabling errors (CRC/Input drops) detected on any active ports.", 0, 1)
         
-        # Reset color
         self.set_text_color(0, 0, 0) 
+        self.ln(10)
+
+    def _add_power_health_summary(self, devices):
+        """New diagnostics block for Power/PDU."""
+        self.set_font('Arial', 'B', 9)
+        self.cell(0, 8, "Diagnostics & Power Load Analysis:", 0, 1)
+        self.set_font('Arial', '', 8)
+
+        for d in devices:
+            # 1. Power Metrics
+            metrics = d.get('power_metrics')
+            if metrics and metrics != "N/A":
+                # Parse current to see if we should warn (e.g., >14A on a 16A circuit)
+                # Format is usually: "230V / 1.5A (345W)"
+                is_high_load = False
+                try:
+                    # Simple heuristic: find 'A' and check number before it
+                    import re
+                    amp_match = re.search(r'/\s*([0-9\.]+)\s*A', metrics)
+                    if amp_match and float(amp_match.group(1)) > 14.0:
+                        is_high_load = True
+                except: pass
+
+                if is_high_load:
+                    self.set_text_color(200, 0, 0) # Red
+                    self.cell(0, 6, f" [WARNING] {d['name']} HIGH LOAD DETECTED: {metrics}", 0, 1)
+                else:
+                    self.set_text_color(0, 100, 0) # Green
+                    self.cell(0, 6, f" [INFO] {d['name']} Input Load: {metrics}", 0, 1)
+
+            # 2. Port Status (Summary)
+            ports = d.get('port_status', [])
+            if ports:
+                on_count = sum(1 for p in ports if "ON" in p)
+                off_count = sum(1 for p in ports if "OFF" in p)
+                self.set_text_color(0, 0, 150) # Blue
+                self.cell(0, 6, f" [INFO] {d['name']} Outlet Status: {on_count} ON / {off_count} OFF", 0, 1)
+
+        self.set_text_color(0, 0, 0)
         self.ln(10)
 
     def save_report(self, filename="commissioning_report.pdf"):
